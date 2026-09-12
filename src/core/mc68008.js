@@ -18,7 +18,9 @@ export const M68K_VECTOR = Object.freeze({
   BUS_ERROR: 2,
   ADDRESS_ERROR: 3,
   ILLEGAL_INSTRUCTION: 4,
+  TRAPV: 7,
   PRIVILEGE_VIOLATION: 8,
+  TRAP_BASE: 32,
 });
 
 export const M68K_SR = Object.freeze({
@@ -542,6 +544,64 @@ export class MC68008 {
     this.setLogicalFlags(result, SIZE_LONG);
   }
 
+  executeTas(opcode) {
+    const mode = (opcode >>> 3) & 0x07;
+    const register = opcode & 0x07;
+    const validDestination = mode === 0
+      || (mode >= 2 && mode <= 6)
+      || (mode === 7 && register <= 1);
+    if (!validDestination) throw new IllegalEffectiveAddress();
+
+    const destination = this.effectiveAddress(mode, register, SIZE_BYTE, { writable: true });
+    const oldValue = destination.read();
+    this.setLogicalFlags(oldValue, SIZE_BYTE);
+    destination.write(oldValue | 0x80);
+  }
+
+  executeMoveFromSr(opcode) {
+    const mode = (opcode >>> 3) & 0x07;
+    const register = opcode & 0x07;
+    const validDestination = mode === 0
+      || (mode >= 2 && mode <= 6)
+      || (mode === 7 && register <= 1);
+    if (!validDestination) throw new IllegalEffectiveAddress();
+
+    const destination = this.effectiveAddress(mode, register, SIZE_WORD, { writable: true });
+    if (mode !== 0) destination.read(); // The MC68000/MC68008 performs a read before the write.
+    destination.write(this.sr);
+  }
+
+  executeMoveToStatus(opcode, opcodeAddress, toSr) {
+    if (toSr && !this.supervisor) {
+      this.exception(M68K_VECTOR.PRIVILEGE_VIOLATION, opcodeAddress);
+      return;
+    }
+
+    const mode = (opcode >>> 3) & 0x07;
+    const register = opcode & 0x07;
+    const validSource = mode === 0
+      || (mode >= 2 && mode <= 6)
+      || (mode === 7 && register <= 4);
+    if (!validSource) throw new IllegalEffectiveAddress();
+    const source = this.effectiveAddress(mode, register, SIZE_WORD, { immediate: true }).read();
+    if (toSr) this.setStatusRegister(source);
+    else this.sr = (this.sr & ~0x1f) | (source & 0x1f);
+  }
+
+  executeMoveUsp(opcode, opcodeAddress) {
+    if (!this.supervisor) {
+      this.exception(M68K_VECTOR.PRIVILEGE_VIOLATION, opcodeAddress);
+      return;
+    }
+    const register = opcode & 0x07;
+    if (opcode & 0x0008) this.a[register] = this.usp;
+    else this.usp = this.a[register];
+  }
+
+  executeTrap(vector) {
+    this.exception(vector);
+  }
+
   executeJump(opcode, subroutine) {
     const target = this.controlAddress((opcode >>> 3) & 0x07, opcode & 0x07);
     if (subroutine) this.push32(this.pc);
@@ -936,8 +996,14 @@ export class MC68008 {
         this.executeRte(opcodeAddress);
       } else if (opcode === 0x4e75) {
         this.pc = this.pop32();
+      } else if (opcode === 0x4e76) {
+        if (this.sr & SR_OVERFLOW) this.executeTrap(M68K_VECTOR.TRAPV);
       } else if (opcode === 0x4e77) {
         this.executeRtr();
+      } else if ((opcode & 0xfff0) === 0x4e40) {
+        this.executeTrap(M68K_VECTOR.TRAP_BASE + (opcode & 0x0f));
+      } else if ((opcode & 0xfff0) === 0x4e60) {
+        this.executeMoveUsp(opcode, opcodeAddress);
       } else if ((opcode & 0xf000) === 0x6000) {
         this.executeBranch(opcode);
       } else if ((opcode & 0xf000) === 0x5000) {
@@ -963,6 +1029,12 @@ export class MC68008 {
         this.executeUnlk(opcode & 0x07);
       } else if ((opcode & 0xf1c0) === 0x41c0) {
         this.executeLea(opcode);
+      } else if ((opcode & 0xffc0) === 0x40c0) {
+        this.executeMoveFromSr(opcode);
+      } else if ((opcode & 0xffc0) === 0x44c0) {
+        this.executeMoveToStatus(opcode, opcodeAddress, false);
+      } else if ((opcode & 0xffc0) === 0x46c0) {
+        this.executeMoveToStatus(opcode, opcodeAddress, true);
       } else if ((opcode & 0xff00) === 0x4200) {
         this.executeClr(opcode);
       } else if ((opcode & 0xff00) === 0x4000) {
@@ -971,6 +1043,8 @@ export class MC68008 {
         this.executeUnary(opcode, "neg");
       } else if ((opcode & 0xff00) === 0x4600) {
         this.executeUnary(opcode, "not");
+      } else if ((opcode & 0xffc0) === 0x4ac0) {
+        this.executeTas(opcode);
       } else if ((opcode & 0xff00) === 0x4a00) {
         this.executeTst(opcode);
       } else if ((opcode & 0xf000) === 0xd000) {
