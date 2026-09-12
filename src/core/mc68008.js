@@ -489,6 +489,59 @@ export class MC68008 {
     this.setLogicalFlags(source.read(), size);
   }
 
+  executeUnary(opcode, operation) {
+    const size = sizeFromCode((opcode >>> 6) & 0x03);
+    const mode = (opcode >>> 3) & 0x07;
+    const register = opcode & 0x07;
+    const validDestination = mode === 0
+      || (mode >= 2 && mode <= 6)
+      || (mode === 7 && register <= 1);
+    if (size === null || !validDestination) throw new IllegalEffectiveAddress();
+
+    const destination = this.effectiveAddress(mode, register, size, { writable: true });
+    const oldValue = destination.read() & maskForSize(size);
+    if (operation === "not") {
+      const result = ~oldValue;
+      destination.write(result);
+      this.setLogicalFlags(result, size);
+      return;
+    }
+
+    const extend = operation === "negx" && Boolean(this.sr & SR_EXTEND) ? 1 : 0;
+    const mask = maskForSize(size);
+    const sign = signBitForSize(size);
+    const source = (oldValue + extend) & mask;
+    const result = (-oldValue - extend) & mask;
+    const borrow = oldValue !== 0 || extend !== 0;
+    const overflow = Boolean((source & result & sign) >>> 0);
+    const oldZero = Boolean(this.sr & SR_ZERO);
+
+    destination.write(result);
+    this.sr &= ~(SR_EXTEND | SR_NEGATIVE | SR_ZERO | SR_OVERFLOW | SR_CARRY);
+    if (result & sign) this.sr |= SR_NEGATIVE;
+    if (operation === "negx" ? oldZero && result === 0 : result === 0) this.sr |= SR_ZERO;
+    if (overflow) this.sr |= SR_OVERFLOW;
+    if (borrow) this.sr |= SR_CARRY | SR_EXTEND;
+  }
+
+  executeExt(opcode) {
+    const register = opcode & 0x07;
+    const toLong = Boolean(opcode & 0x0040);
+    const size = toLong ? SIZE_LONG : SIZE_WORD;
+    const result = toLong
+      ? signExtend16(this.d[register] & 0xffff) >>> 0
+      : signExtend8(this.d[register] & 0xff) & 0xffff;
+    this.writeDataRegister(register, size, result);
+    this.setLogicalFlags(result, size);
+  }
+
+  executeSwap(register) {
+    const value = this.d[register];
+    const result = ((value << 16) | (value >>> 16)) >>> 0;
+    this.d[register] = result;
+    this.setLogicalFlags(result, SIZE_LONG);
+  }
+
   executeJump(opcode, subroutine) {
     const target = this.controlAddress((opcode >>> 3) & 0x07, opcode & 0x07);
     if (subroutine) this.push32(this.pc);
@@ -898,6 +951,10 @@ export class MC68008 {
         this.executeJump(opcode, true);
       } else if ((opcode & 0xffc0) === 0x4ec0) {
         this.executeJump(opcode, false);
+      } else if ((opcode & 0xfff8) === 0x4840) {
+        this.executeSwap(opcode & 0x07);
+      } else if ((opcode & 0xffb8) === 0x4880) {
+        this.executeExt(opcode);
       } else if ((opcode & 0xffc0) === 0x4840) {
         this.executePea(opcode);
       } else if ((opcode & 0xfff8) === 0x4e50) {
@@ -908,6 +965,12 @@ export class MC68008 {
         this.executeLea(opcode);
       } else if ((opcode & 0xff00) === 0x4200) {
         this.executeClr(opcode);
+      } else if ((opcode & 0xff00) === 0x4000) {
+        this.executeUnary(opcode, "negx");
+      } else if ((opcode & 0xff00) === 0x4400) {
+        this.executeUnary(opcode, "neg");
+      } else if ((opcode & 0xff00) === 0x4600) {
+        this.executeUnary(opcode, "not");
       } else if ((opcode & 0xff00) === 0x4a00) {
         this.executeTst(opcode);
       } else if ((opcode & 0xf000) === 0xd000) {
