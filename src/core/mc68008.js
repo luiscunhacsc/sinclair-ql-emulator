@@ -576,6 +576,29 @@ export class MC68008 {
     else this.setAddFlags(amount, oldValue, result, size);
   }
 
+  executeConditional(opcode) {
+    const condition = (opcode >>> 8) & 0x0f;
+    const mode = (opcode >>> 3) & 0x07;
+    const register = opcode & 0x07;
+
+    if (mode === 1) {
+      const displacement = signExtend16(this.fetch16());
+      if (this.conditionTrue(condition)) return;
+
+      const counter = ((this.d[register] & 0xffff) - 1) & 0xffff;
+      this.d[register] = ((this.d[register] & 0xffff_0000) | counter) >>> 0;
+      if (counter !== 0xffff) this.pc = (this.pc + displacement) >>> 0;
+      return;
+    }
+
+    const validDestination = mode === 0
+      || (mode >= 2 && mode <= 6)
+      || (mode === 7 && register <= 1);
+    if (!validDestination) throw new IllegalEffectiveAddress();
+    const destination = this.effectiveAddress(mode, register, SIZE_BYTE, { writable: true });
+    destination.write(this.conditionTrue(condition) ? 0xff : 0x00);
+  }
+
   executeBit(opcode, dynamic) {
     const operation = (opcode >>> 6) & 0x03;
     const mode = (opcode >>> 3) & 0x07;
@@ -865,7 +888,8 @@ export class MC68008 {
       } else if ((opcode & 0xf000) === 0x6000) {
         this.executeBranch(opcode);
       } else if ((opcode & 0xf000) === 0x5000) {
-        this.executeQuick(opcode);
+        if ((opcode & 0x00c0) === 0x00c0) this.executeConditional(opcode);
+        else this.executeQuick(opcode);
       } else if ((opcode & 0xf100) === 0x7000) {
         this.executeMoveQ(opcode);
       } else if (opcode >>> 12 >= 1 && opcode >>> 12 <= 3) {
