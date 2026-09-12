@@ -392,9 +392,9 @@ export class MC68008 {
   setAddFlags(source, destination, result, size) {
     const mask = maskForSize(size);
     const sign = signBitForSize(size);
-    const src = source & mask;
-    const dst = destination & mask;
-    const res = result & mask;
+    const src = (source & mask) >>> 0;
+    const dst = (destination & mask) >>> 0;
+    const res = (result & mask) >>> 0;
     const carry = src + dst > mask;
     const overflow = Boolean((~(dst ^ src) & (dst ^ res) & sign) >>> 0);
 
@@ -408,9 +408,9 @@ export class MC68008 {
   setSubFlags(source, destination, result, size, affectExtend) {
     const mask = maskForSize(size);
     const sign = signBitForSize(size);
-    const src = source & mask;
-    const dst = destination & mask;
-    const res = result & mask;
+    const src = (source & mask) >>> 0;
+    const dst = (destination & mask) >>> 0;
+    const res = (result & mask) >>> 0;
     const carry = src > dst;
     const overflow = Boolean(((dst ^ src) & (dst ^ res) & sign) >>> 0);
     const preservedExtend = this.sr & SR_EXTEND;
@@ -424,6 +424,25 @@ export class MC68008 {
       this.sr |= SR_CARRY;
       if (affectExtend) this.sr |= SR_EXTEND;
     }
+  }
+
+  setExtendArithmeticFlags(source, destination, result, size, subtract, extend) {
+    const mask = maskForSize(size);
+    const sign = signBitForSize(size);
+    const src = (source & mask) >>> 0;
+    const dst = (destination & mask) >>> 0;
+    const res = (result & mask) >>> 0;
+    const carry = subtract ? src + extend > dst : src + dst + extend > mask;
+    const overflow = subtract
+      ? Boolean(((dst ^ src) & (dst ^ res) & sign) >>> 0)
+      : Boolean((~(dst ^ src) & (dst ^ res) & sign) >>> 0);
+    const oldZero = Boolean(this.sr & SR_ZERO);
+
+    this.sr &= ~(SR_EXTEND | SR_NEGATIVE | SR_ZERO | SR_OVERFLOW | SR_CARRY);
+    if (res & sign) this.sr |= SR_NEGATIVE;
+    if (oldZero && res === 0) this.sr |= SR_ZERO;
+    if (overflow) this.sr |= SR_OVERFLOW;
+    if (carry) this.sr |= SR_CARRY | SR_EXTEND;
   }
 
   executeMove(opcode) {
@@ -995,6 +1014,70 @@ export class MC68008 {
     this.setLogicalFlags(result, size);
   }
 
+  executeExtendArithmetic(opcode, subtract) {
+    const destinationRegister = (opcode >>> 9) & 0x07;
+    const sourceRegister = opcode & 0x07;
+    const size = sizeFromCode((opcode >>> 6) & 0x03);
+    if (size === null) throw new IllegalEffectiveAddress();
+    const memoryMode = Boolean(opcode & 0x0008);
+    const extend = this.sr & SR_EXTEND ? 1 : 0;
+    let source;
+    let destination;
+    let writeResult;
+
+    if (memoryMode) {
+      const sourceStep = size === SIZE_BYTE && sourceRegister === 7 ? 2 : size;
+      this.a[sourceRegister] = (this.a[sourceRegister] - sourceStep) >>> 0;
+      const sourceAddress = this.a[sourceRegister];
+      source = this.readSize(sourceAddress, size);
+
+      const destinationStep = size === SIZE_BYTE && destinationRegister === 7 ? 2 : size;
+      this.a[destinationRegister] = (this.a[destinationRegister] - destinationStep) >>> 0;
+      const destinationAddress = this.a[destinationRegister];
+      destination = this.readSize(destinationAddress, size);
+      writeResult = (value) => this.writeSize(destinationAddress, size, value);
+    } else {
+      source = this.d[sourceRegister] & maskForSize(size);
+      destination = this.d[destinationRegister] & maskForSize(size);
+      writeResult = (value) => this.writeDataRegister(destinationRegister, size, value);
+    }
+
+    const result = subtract
+      ? destination - source - extend
+      : destination + source + extend;
+    writeResult(result);
+    this.setExtendArithmeticFlags(source, destination, result, size, subtract, extend);
+  }
+
+  executeCmpm(opcode) {
+    const destinationRegister = (opcode >>> 9) & 0x07;
+    const sourceRegister = opcode & 0x07;
+    const size = sizeFromCode((opcode >>> 6) & 0x03);
+    if (size === null) throw new IllegalEffectiveAddress();
+
+    const sourceAddress = this.a[sourceRegister];
+    const source = this.readSize(sourceAddress, size);
+    const sourceStep = size === SIZE_BYTE && sourceRegister === 7 ? 2 : size;
+    this.a[sourceRegister] = (this.a[sourceRegister] + sourceStep) >>> 0;
+
+    const destinationAddress = this.a[destinationRegister];
+    const destination = this.readSize(destinationAddress, size);
+    const destinationStep = size === SIZE_BYTE && destinationRegister === 7 ? 2 : size;
+    this.a[destinationRegister] = (this.a[destinationRegister] + destinationStep) >>> 0;
+    this.setSubFlags(source, destination, destination - source, size, false);
+  }
+
+  executeExg(opcode) {
+    const firstRegister = (opcode >>> 9) & 0x07;
+    const secondRegister = opcode & 0x07;
+    const operation = opcode & 0x00f8;
+    const firstBank = operation === 0x0048 ? this.a : this.d;
+    const secondBank = operation === 0x0088 ? this.a : firstBank;
+    const temporary = firstBank[firstRegister];
+    firstBank[firstRegister] = secondBank[secondRegister];
+    secondBank[secondRegister] = temporary;
+  }
+
   executeAddSub(opcode, subtract) {
     const dataRegister = (opcode >>> 9) & 0x07;
     const operationMode = (opcode >>> 6) & 0x07;
@@ -1138,10 +1221,16 @@ export class MC68008 {
         this.executeTas(opcode);
       } else if ((opcode & 0xff00) === 0x4a00) {
         this.executeTst(opcode);
+      } else if ((opcode & 0xf130) === 0xd100 && (opcode & 0x00c0) !== 0x00c0) {
+        this.executeExtendArithmetic(opcode, false);
       } else if ((opcode & 0xf000) === 0xd000) {
         this.executeAddSub(opcode, false);
+      } else if ((opcode & 0xf130) === 0x9100 && (opcode & 0x00c0) !== 0x00c0) {
+        this.executeExtendArithmetic(opcode, true);
       } else if ((opcode & 0xf000) === 0x9000) {
         this.executeAddSub(opcode, true);
+      } else if ((opcode & 0xf138) === 0xb108 && (opcode & 0x00c0) !== 0x00c0) {
+        this.executeCmpm(opcode);
       } else if ((opcode & 0xf000) === 0xb000) {
         this.executeCmp(opcode);
       } else if ((opcode & 0xf1c0) === 0x80c0) {
@@ -1154,6 +1243,8 @@ export class MC68008 {
         this.executeMultiply(opcode, false);
       } else if ((opcode & 0xf1c0) === 0xc1c0) {
         this.executeMultiply(opcode, true);
+      } else if ([0xc140, 0xc148, 0xc188].includes(opcode & 0xf1f8)) {
+        this.executeExg(opcode);
       } else if ((opcode & 0xf000) === 0xc000) {
         this.executeLogical(opcode, "and");
       } else if ((opcode & 0xf100) === 0x0100) {
