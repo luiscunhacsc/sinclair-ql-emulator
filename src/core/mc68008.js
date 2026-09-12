@@ -78,6 +78,24 @@ function signExtend(value, size) {
   return value >>> 0;
 }
 
+function addPackedBcd(source, destination, extend) {
+  const binary = destination + source + extend;
+  let adjusted = binary;
+  if ((destination & 0x0f) + (source & 0x0f) + extend > 9) adjusted += 0x06;
+  const carry = adjusted > 0x99;
+  if (carry) adjusted += 0x60;
+  return { result: adjusted & 0xff, carry };
+}
+
+function subtractPackedBcd(source, destination, extend) {
+  const binary = destination - source - extend;
+  let adjusted = binary;
+  if ((destination & 0x0f) - (source & 0x0f) - extend < 0) adjusted -= 0x06;
+  const carry = binary < 0;
+  if (carry) adjusted -= 0x60;
+  return { result: adjusted & 0xff, carry };
+}
+
 export class MC68008 {
   constructor(bus) {
     this.bus = bus;
@@ -445,6 +463,13 @@ export class MC68008 {
     if (carry) this.sr |= SR_CARRY | SR_EXTEND;
   }
 
+  setBcdFlags(result, carry) {
+    const oldZero = Boolean(this.sr & SR_ZERO);
+    this.sr &= ~(SR_EXTEND | SR_ZERO | SR_CARRY);
+    if (oldZero && result === 0) this.sr |= SR_ZERO;
+    if (carry) this.sr |= SR_CARRY | SR_EXTEND;
+  }
+
   executeMove(opcode) {
     const size = opcode >>> 12 === 1
       ? SIZE_BYTE
@@ -577,6 +602,22 @@ export class MC68008 {
     const oldValue = destination.read();
     this.setLogicalFlags(oldValue, SIZE_BYTE);
     destination.write(oldValue | 0x80);
+  }
+
+  executeNbcd(opcode) {
+    const mode = (opcode >>> 3) & 0x07;
+    const register = opcode & 0x07;
+    const validDestination = mode === 0
+      || (mode >= 2 && mode <= 6)
+      || (mode === 7 && register <= 1);
+    if (!validDestination) throw new IllegalEffectiveAddress();
+
+    const destination = this.effectiveAddress(mode, register, SIZE_BYTE, { writable: true });
+    const oldValue = destination.read();
+    const extend = this.sr & SR_EXTEND ? 1 : 0;
+    const { result, carry } = subtractPackedBcd(oldValue, 0, extend);
+    destination.write(result);
+    this.setBcdFlags(result, carry);
   }
 
   executeMultiply(opcode, signed) {
@@ -1049,6 +1090,39 @@ export class MC68008 {
     this.setExtendArithmeticFlags(source, destination, result, size, subtract, extend);
   }
 
+  executeBcdPair(opcode, subtract) {
+    const destinationRegister = (opcode >>> 9) & 0x07;
+    const sourceRegister = opcode & 0x07;
+    const memoryMode = Boolean(opcode & 0x0008);
+    const extend = this.sr & SR_EXTEND ? 1 : 0;
+    let source;
+    let destination;
+    let writeResult;
+
+    if (memoryMode) {
+      const sourceStep = sourceRegister === 7 ? 2 : 1;
+      this.a[sourceRegister] = (this.a[sourceRegister] - sourceStep) >>> 0;
+      const sourceAddress = this.a[sourceRegister];
+      source = this.read8(sourceAddress);
+
+      const destinationStep = destinationRegister === 7 ? 2 : 1;
+      this.a[destinationRegister] = (this.a[destinationRegister] - destinationStep) >>> 0;
+      const destinationAddress = this.a[destinationRegister];
+      destination = this.read8(destinationAddress);
+      writeResult = (value) => this.write8(destinationAddress, value);
+    } else {
+      source = this.d[sourceRegister] & 0xff;
+      destination = this.d[destinationRegister] & 0xff;
+      writeResult = (value) => this.writeDataRegister(destinationRegister, SIZE_BYTE, value);
+    }
+
+    const adjusted = subtract
+      ? subtractPackedBcd(source, destination, extend)
+      : addPackedBcd(source, destination, extend);
+    writeResult(adjusted.result);
+    this.setBcdFlags(adjusted.result, adjusted.carry);
+  }
+
   executeCmpm(opcode) {
     const destinationRegister = (opcode >>> 9) & 0x07;
     const sourceRegister = opcode & 0x07;
@@ -1193,6 +1267,8 @@ export class MC68008 {
         this.executeSwap(opcode & 0x07);
       } else if ((opcode & 0xffb8) === 0x4880) {
         this.executeExt(opcode);
+      } else if ((opcode & 0xffc0) === 0x4800) {
+        this.executeNbcd(opcode);
       } else if ((opcode & 0xffc0) === 0x4840) {
         this.executePea(opcode);
       } else if ((opcode & 0xfff8) === 0x4e50) {
@@ -1237,6 +1313,8 @@ export class MC68008 {
         this.executeDivide(opcode, false);
       } else if ((opcode & 0xf1c0) === 0x81c0) {
         this.executeDivide(opcode, true);
+      } else if ((opcode & 0xf1f0) === 0x8100) {
+        this.executeBcdPair(opcode, true);
       } else if ((opcode & 0xf000) === 0x8000) {
         this.executeLogical(opcode, "or");
       } else if ((opcode & 0xf1c0) === 0xc0c0) {
@@ -1245,6 +1323,8 @@ export class MC68008 {
         this.executeMultiply(opcode, true);
       } else if ([0xc140, 0xc148, 0xc188].includes(opcode & 0xf1f8)) {
         this.executeExg(opcode);
+      } else if ((opcode & 0xf1f0) === 0xc100) {
+        this.executeBcdPair(opcode, false);
       } else if ((opcode & 0xf000) === 0xc000) {
         this.executeLogical(opcode, "and");
       } else if ((opcode & 0xf100) === 0x0100) {
