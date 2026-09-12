@@ -513,6 +513,170 @@ export class MC68008 {
     this.a[register] = this.pop32();
   }
 
+  executeRte(opcodeAddress) {
+    if (!this.supervisor) {
+      this.exception(M68K_VECTOR.PRIVILEGE_VIOLATION, opcodeAddress);
+      return;
+    }
+    const restoredSr = this.pop16();
+    const restoredPc = this.pop32();
+    this.setStatusRegister(restoredSr);
+    this.pc = restoredPc;
+  }
+
+  executeRtr() {
+    const restoredCcr = this.pop16() & 0x1f;
+    const restoredPc = this.pop32();
+    this.sr = (this.sr & ~0x1f) | restoredCcr;
+    this.pc = restoredPc;
+  }
+
+  executeStop(opcodeAddress) {
+    if (!this.supervisor) {
+      this.exception(M68K_VECTOR.PRIVILEGE_VIOLATION, opcodeAddress);
+      return;
+    }
+    this.setStatusRegister(this.fetch16());
+    this.stopped = true;
+  }
+
+  executeReset(opcodeAddress) {
+    if (!this.supervisor) {
+      this.exception(M68K_VECTOR.PRIVILEGE_VIOLATION, opcodeAddress);
+      return;
+    }
+    this.bus.resetDevices?.();
+  }
+
+  executeQuick(opcode) {
+    const amount = (opcode >>> 9) & 0x07 || 8;
+    const subtract = Boolean(opcode & 0x0100);
+    const size = sizeFromCode((opcode >>> 6) & 0x03);
+    const mode = (opcode >>> 3) & 0x07;
+    const register = opcode & 0x07;
+    if (size === null) throw new IllegalEffectiveAddress(); // DBcc/Scc use this size code.
+
+    if (mode === 1) {
+      if (size === SIZE_BYTE) throw new IllegalEffectiveAddress();
+      this.a[register] = subtract
+        ? (this.a[register] - amount) >>> 0
+        : (this.a[register] + amount) >>> 0;
+      return;
+    }
+
+    const validDestination = mode === 0
+      || (mode >= 2 && mode <= 6)
+      || (mode === 7 && register <= 1);
+    if (!validDestination) throw new IllegalEffectiveAddress();
+    const destination = this.effectiveAddress(mode, register, size, { writable: true });
+    const oldValue = destination.read();
+    const result = subtract ? oldValue - amount : oldValue + amount;
+    destination.write(result);
+    if (subtract) this.setSubFlags(amount, oldValue, result, size, true);
+    else this.setAddFlags(amount, oldValue, result, size);
+  }
+
+  executeBit(opcode, dynamic) {
+    const operation = (opcode >>> 6) & 0x03;
+    const mode = (opcode >>> 3) & 0x07;
+    const register = opcode & 0x07;
+    if (mode === 1 || (mode === 7 && register >= (operation === 0 ? 4 : 2))) {
+      throw new IllegalEffectiveAddress();
+    }
+
+    const bitNumber = dynamic
+      ? this.d[(opcode >>> 9) & 0x07]
+      : this.fetch16();
+    const size = mode === 0 ? SIZE_LONG : SIZE_BYTE;
+    const bit = bitNumber % (size * 8);
+    const writable = operation !== 0;
+    const operand = this.effectiveAddress(mode, register, size, {
+      immediate: operation === 0,
+      writable,
+    });
+    const oldValue = operand.read();
+    const bitMask = 2 ** bit;
+
+    this.sr &= ~SR_ZERO;
+    if ((oldValue & bitMask) === 0) this.sr |= SR_ZERO;
+    if (!writable) return;
+
+    let result;
+    if (operation === 1) result = oldValue ^ bitMask;
+    else if (operation === 2) result = oldValue & ~bitMask;
+    else result = oldValue | bitMask;
+    operand.write(result);
+  }
+
+  shiftValue(value, size, type, left, count) {
+    const mask = maskForSize(size);
+    const sign = signBitForSize(size);
+    let result = (value & mask) >>> 0;
+    let carry = false;
+    let extend = Boolean(this.sr & SR_EXTEND);
+    let overflow = false;
+
+    for (let index = 0; index < count; index += 1) {
+      const previousSign = Boolean(result & sign);
+      if (left) {
+        carry = previousSign;
+        const input = type === 2 ? Number(extend) : type === 3 ? Number(carry) : 0;
+        result = ((result << 1) | input) & mask;
+      } else {
+        carry = Boolean(result & 1);
+        let input = 0;
+        if (type === 0 && previousSign) input = sign;
+        else if (type === 2 && extend) input = sign;
+        else if (type === 3 && carry) input = sign;
+        result = ((result >>> 1) | input) & mask;
+      }
+      result >>>= 0;
+      if (type === 0 && left && previousSign !== Boolean(result & sign)) overflow = true;
+      if (type === 2) extend = carry;
+    }
+
+    const oldExtend = Boolean(this.sr & SR_EXTEND);
+    this.sr &= ~(SR_NEGATIVE | SR_ZERO | SR_OVERFLOW | SR_CARRY);
+    if (result === 0) this.sr |= SR_ZERO;
+    if (result & sign) this.sr |= SR_NEGATIVE;
+    if (overflow) this.sr |= SR_OVERFLOW;
+    if ((count === 0 && type === 2) ? oldExtend : carry) this.sr |= SR_CARRY;
+    if (count > 0 && type !== 3) {
+      this.sr &= ~SR_EXTEND;
+      if (type === 2 ? extend : carry) this.sr |= SR_EXTEND;
+    }
+    return result >>> 0;
+  }
+
+  executeShift(opcode) {
+    const memoryForm = ((opcode >>> 6) & 0x03) === 0x03;
+    if (memoryForm) {
+      const operation = (opcode >>> 8) & 0x07;
+      const type = operation >>> 1;
+      const left = Boolean(operation & 1);
+      const mode = (opcode >>> 3) & 0x07;
+      const register = opcode & 0x07;
+      if (mode < 2 || (mode === 7 && register > 1)) throw new IllegalEffectiveAddress();
+      const destination = this.effectiveAddress(mode, register, SIZE_WORD, { writable: true });
+      const result = this.shiftValue(destination.read(), SIZE_WORD, type, left, 1);
+      destination.write(result);
+      return;
+    }
+
+    const size = sizeFromCode((opcode >>> 6) & 0x03);
+    if (size === null) throw new IllegalEffectiveAddress();
+    const destinationRegister = opcode & 0x07;
+    const fromRegister = Boolean(opcode & 0x0020);
+    const countField = (opcode >>> 9) & 0x07;
+    const count = fromRegister ? this.d[countField] & 0x3f : countField || 8;
+    const type = (opcode >>> 3) & 0x03;
+    const left = Boolean(opcode & 0x0100);
+    const oldValue = this.d[destinationRegister] & maskForSize(size);
+    const result = this.shiftValue(oldValue, size, type, left, count);
+    this.writeDataRegister(destinationRegister, size, result);
+    this.cycles += count * 2;
+  }
+
   executeImmediateToStatus(opcode, opcodeAddress) {
     const operation = opcode & 0xff00;
     const toStatusRegister = (opcode & 0x00ff) === 0x7c;
@@ -686,12 +850,22 @@ export class MC68008 {
     const opcode = this.fetch16();
 
     try {
-      if (opcode === 0x4e71) {
+      if (opcode === 0x4e70) {
+        this.executeReset(opcodeAddress);
+      } else if (opcode === 0x4e71) {
         // NOP: on the MC68008 the 16-bit opcode fetch itself takes eight clocks.
+      } else if (opcode === 0x4e72) {
+        this.executeStop(opcodeAddress);
+      } else if (opcode === 0x4e73) {
+        this.executeRte(opcodeAddress);
       } else if (opcode === 0x4e75) {
         this.pc = this.pop32();
+      } else if (opcode === 0x4e77) {
+        this.executeRtr();
       } else if ((opcode & 0xf000) === 0x6000) {
         this.executeBranch(opcode);
+      } else if ((opcode & 0xf000) === 0x5000) {
+        this.executeQuick(opcode);
       } else if ((opcode & 0xf100) === 0x7000) {
         this.executeMoveQ(opcode);
       } else if (opcode >>> 12 >= 1 && opcode >>> 12 <= 3) {
@@ -722,6 +896,12 @@ export class MC68008 {
         this.executeLogical(opcode, "or");
       } else if ((opcode & 0xf000) === 0xc000) {
         this.executeLogical(opcode, "and");
+      } else if ((opcode & 0xf100) === 0x0100) {
+        this.executeBit(opcode, true);
+      } else if ((opcode & 0xff00) === 0x0800) {
+        this.executeBit(opcode, false);
+      } else if ((opcode & 0xf000) === 0xe000) {
+        this.executeShift(opcode);
       } else if ([0x0000, 0x0200, 0x0400, 0x0600, 0x0a00, 0x0c00].includes(opcode & 0xff00)) {
         this.executeImmediate(opcode, opcodeAddress);
       } else {

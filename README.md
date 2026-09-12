@@ -42,7 +42,8 @@ ROM/RAM e carregamento local da ROM. O primeiro bloco do MC68008 já implementa
 reset, registos, pilhas de supervisor/utilizador, acesso alinhado, exceção de
 instrução ilegal, violação de privilégio e códigos de condição. Estão
 implementados NOP, MOVEQ, MOVE/MOVEA, LEA, CLR, TST, ADD/ADDA, SUB/SUBA,
-CMP/CMPA, OR, AND, EOR, as variantes imediatas, BRA/Bcc, BSR, JMP, JSR, PEA,
-LINK/UNLK e RTS, bem como os principais modos de endereçamento do MC68000. A
-cobertura da CPU será aumentada incrementalmente e confrontada com os testes
-públicos SingleStepTests/m68000.
+CMP/CMPA, ADDQ/SUBQ, OR, AND, EOR, operações de bits, shifts e rotações, as
+variantes imediatas, BRA/Bcc, BSR, JMP, JSR, PEA, LINK/UNLK, RESET, STOP, RTS,
+RTR e RTE, bem como os principais modos de endereçamento do MC68000. A cobertura
+da CPU será aumentada incrementalmente e confrontada com os testes públicos
+SingleStepTests/m68000.
