@@ -1,0 +1,9 @@
+node_modules/
+coverage/
+*.rom
+*.bin
+*.mdv
+*.qxl
+*.win
+.DS_Store
+
