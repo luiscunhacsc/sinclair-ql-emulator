@@ -489,6 +489,123 @@ export class MC68008 {
     this.setLogicalFlags(source.read(), size);
   }
 
+  executeJump(opcode, subroutine) {
+    const target = this.controlAddress((opcode >>> 3) & 0x07, opcode & 0x07);
+    if (subroutine) this.push32(this.pc);
+    this.pc = target >>> 0;
+  }
+
+  executePea(opcode) {
+    const address = this.controlAddress((opcode >>> 3) & 0x07, opcode & 0x07);
+    this.push32(address);
+  }
+
+  executeLink(register) {
+    const displacement = signExtend16(this.fetch16());
+    const oldFramePointer = this.a[register];
+    this.push32(oldFramePointer);
+    this.a[register] = this.a[7];
+    this.a[7] = (this.a[7] + displacement) >>> 0;
+  }
+
+  executeUnlk(register) {
+    this.a[7] = this.a[register];
+    this.a[register] = this.pop32();
+  }
+
+  executeImmediateToStatus(opcode, opcodeAddress) {
+    const operation = opcode & 0xff00;
+    const toStatusRegister = (opcode & 0x00ff) === 0x7c;
+    if (toStatusRegister && !this.supervisor) {
+      this.exception(M68K_VECTOR.PRIVILEGE_VIOLATION, opcodeAddress);
+      return;
+    }
+
+    const immediate = this.fetch16();
+    if (toStatusRegister) {
+      if (operation === 0x0000) this.setStatusRegister(this.sr | immediate);
+      else if (operation === 0x0200) this.setStatusRegister(this.sr & immediate);
+      else this.setStatusRegister(this.sr ^ immediate);
+      return;
+    }
+
+    const ccr = this.sr & 0x1f;
+    const operand = immediate & 0x1f;
+    const result = operation === 0x0000
+      ? ccr | operand
+      : operation === 0x0200
+        ? ccr & operand
+        : ccr ^ operand;
+    this.sr = (this.sr & ~0x1f) | result;
+  }
+
+  executeImmediate(opcode, opcodeAddress) {
+    const operation = opcode & 0xff00;
+    const lowByte = opcode & 0x00ff;
+    const statusOperation = operation === 0x0000 || operation === 0x0200 || operation === 0x0a00;
+    if (statusOperation && (lowByte === 0x3c || lowByte === 0x7c)) {
+      this.executeImmediateToStatus(opcode, opcodeAddress);
+      return;
+    }
+
+    const size = sizeFromCode((opcode >>> 6) & 0x03);
+    const mode = (opcode >>> 3) & 0x07;
+    const register = opcode & 0x07;
+    const validDestination = mode === 0
+      || (mode >= 2 && mode <= 6)
+      || (mode === 7 && register <= 1);
+    if (size === null || !validDestination) throw new IllegalEffectiveAddress();
+
+    const immediate = this.readImmediate(size);
+    const destination = this.effectiveAddress(mode, register, size, { writable: true });
+    const oldValue = destination.read();
+
+    if (operation === 0x0c00) {
+      this.setSubFlags(immediate, oldValue, oldValue - immediate, size, false);
+      return;
+    }
+
+    let result;
+    if (operation === 0x0000) result = oldValue | immediate;
+    else if (operation === 0x0200) result = oldValue & immediate;
+    else if (operation === 0x0400) result = oldValue - immediate;
+    else if (operation === 0x0600) result = oldValue + immediate;
+    else if (operation === 0x0a00) result = oldValue ^ immediate;
+    else throw new IllegalEffectiveAddress();
+
+    destination.write(result);
+    if (operation === 0x0400) this.setSubFlags(immediate, oldValue, result, size, true);
+    else if (operation === 0x0600) this.setAddFlags(immediate, oldValue, result, size);
+    else this.setLogicalFlags(result, size);
+  }
+
+  executeLogical(opcode, operation) {
+    const dataRegister = (opcode >>> 9) & 0x07;
+    const operationMode = (opcode >>> 6) & 0x07;
+    const mode = (opcode >>> 3) & 0x07;
+    const register = opcode & 0x07;
+    if (operationMode === 3 || operationMode === 7) throw new IllegalEffectiveAddress();
+    const size = sizeFromCode(operationMode & 0x03);
+    if (size === null) throw new IllegalEffectiveAddress();
+
+    if (operationMode <= 2) {
+      const source = this.effectiveAddress(mode, register, size, { immediate: true }).read();
+      const oldValue = this.d[dataRegister] & maskForSize(size);
+      const result = operation === "or" ? oldValue | source : oldValue & source;
+      this.writeDataRegister(dataRegister, size, result);
+      this.setLogicalFlags(result, size);
+      return;
+    }
+
+    if (mode < 2) throw new IllegalEffectiveAddress(); // SBCD/ABCD/EXG encodings.
+    const destination = this.effectiveAddress(mode, register, size, { writable: true });
+    const oldValue = destination.read();
+    const source = this.d[dataRegister] & maskForSize(size);
+    const result = operation === "or" ? oldValue | source : oldValue & source;
+    destination.write(result);
+    this.setLogicalFlags(result, size);
+  }
+
   executeAddSub(opcode, subtract) {
     const dataRegister = (opcode >>> 9) & 0x07;
     const operationMode = (opcode >>> 6) & 0x07;
@@ -544,7 +661,18 @@ export class MC68008 {
       return;
     }
 
-    if (operationMode > 2) throw new IllegalEffectiveAddress(); // EOR/CMPM encodings.
+    if (operationMode >= 4 && operationMode <= 6) {
+      if (mode === 1) throw new IllegalEffectiveAddress(); // CMPM encoding.
+      const size = sizeFromCode(operationMode - 4);
+      const destination = this.effectiveAddress(mode, register, size, { writable: true });
+      const oldValue = destination.read();
+      const result = oldValue ^ (this.d[dataRegister] & maskForSize(size));
+      destination.write(result);
+      this.setLogicalFlags(result, size);
+      return;
+    }
+
+    if (operationMode > 2) throw new IllegalEffectiveAddress();
     const size = sizeFromCode(operationMode);
     const source = this.effectiveAddress(mode, register, size, { immediate: true }).read();
     const destination = this.d[dataRegister] & maskForSize(size);
@@ -568,6 +696,16 @@ export class MC68008 {
         this.executeMoveQ(opcode);
       } else if (opcode >>> 12 >= 1 && opcode >>> 12 <= 3) {
         this.executeMove(opcode);
+      } else if ((opcode & 0xffc0) === 0x4e80) {
+        this.executeJump(opcode, true);
+      } else if ((opcode & 0xffc0) === 0x4ec0) {
+        this.executeJump(opcode, false);
+      } else if ((opcode & 0xffc0) === 0x4840) {
+        this.executePea(opcode);
+      } else if ((opcode & 0xfff8) === 0x4e50) {
+        this.executeLink(opcode & 0x07);
+      } else if ((opcode & 0xfff8) === 0x4e58) {
+        this.executeUnlk(opcode & 0x07);
       } else if ((opcode & 0xf1c0) === 0x41c0) {
         this.executeLea(opcode);
       } else if ((opcode & 0xff00) === 0x4200) {
@@ -580,6 +718,12 @@ export class MC68008 {
         this.executeAddSub(opcode, true);
       } else if ((opcode & 0xf000) === 0xb000) {
         this.executeCmp(opcode);
+      } else if ((opcode & 0xf000) === 0x8000) {
+        this.executeLogical(opcode, "or");
+      } else if ((opcode & 0xf000) === 0xc000) {
+        this.executeLogical(opcode, "and");
+      } else if ([0x0000, 0x0200, 0x0400, 0x0600, 0x0a00, 0x0c00].includes(opcode & 0xff00)) {
+        this.executeImmediate(opcode, opcodeAddress);
       } else {
         throw new IllegalEffectiveAddress();
       }
