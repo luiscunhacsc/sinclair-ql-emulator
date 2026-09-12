@@ -25,6 +25,18 @@ export class QLBus {
     this.ram.fill(0);
   }
 
+  loadRam(address, bytes) {
+    if (!(bytes instanceof Uint8Array)) {
+      throw new TypeError("Os dados devem ser fornecidos como Uint8Array.");
+    }
+    const normalized = address & ADDRESS_MASK;
+    const offset = normalized - INTERNAL_RAM_START;
+    if (offset < 0 || offset + bytes.byteLength > INTERNAL_RAM_SIZE) {
+      throw new RangeError("O bloco não cabe na RAM interna do QL.");
+    }
+    this.ram.set(bytes, offset);
+  }
+
   read8(address) {
     const normalized = address & ADDRESS_MASK;
     if (normalized < INTERNAL_ROM_SIZE) return this.rom[normalized];
@@ -72,4 +84,3 @@ export const QL_MEMORY = Object.freeze({
   internalRamStart: INTERNAL_RAM_START,
   internalRamSize: INTERNAL_RAM_SIZE,
 });
-

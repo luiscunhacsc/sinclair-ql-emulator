@@ -37,7 +37,9 @@ npm test
 
 ## Estado
 
-O projeto contém neste momento a estrutura do emulador, o barramento de 20 bits,
-o mapa inicial de ROM/RAM, carregamento local da ROM e testes do acesso
-big-endian. A CPU e os dispositivos serão acrescentados incrementalmente.
-
+O projeto contém a estrutura do emulador, barramento de 20 bits, mapa inicial de
+ROM/RAM e carregamento local da ROM. O primeiro bloco do MC68008 já implementa
+reset, registos, pilhas de supervisor/utilizador, acesso alinhado, exceção de
+instrução ilegal, códigos de condição e as instruções NOP, MOVEQ, BRA/Bcc, BSR e
+RTS. A cobertura da CPU será aumentada incrementalmente e confrontada com os
+testes públicos SingleStepTests/m68000.

@@ -40,3 +40,11 @@ endereços são normalizados para 20 bits.
 6. Microdrives, imagens persistentes e estados guardados.
 7. Suite de compatibilidade e afinação em hardware real.
 
+## Validação do MC68008
+
+O conjunto de instruções é implementado a partir dos manuais Motorola. Além dos
+testes unitários pequenos e legíveis deste repositório, será usado o corpus
+`SingleStepTests/m68000`, que contém estados completos antes e depois de cada
+instrução. As diferenças de barramento entre MC68000 e MC68008 serão validadas
+separadamente: no QL cada transferência de byte ocupa inicialmente quatro
+clocks, e uma leitura de palavra exige duas transferências.
