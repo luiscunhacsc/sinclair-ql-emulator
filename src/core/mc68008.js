@@ -18,6 +18,8 @@ export const M68K_VECTOR = Object.freeze({
   BUS_ERROR: 2,
   ADDRESS_ERROR: 3,
   ILLEGAL_INSTRUCTION: 4,
+  DIVIDE_BY_ZERO: 5,
+  CHK: 6,
   TRAPV: 7,
   PRIVILEGE_VIOLATION: 8,
   TRAP_BASE: 32,
@@ -558,6 +560,93 @@ export class MC68008 {
     destination.write(oldValue | 0x80);
   }
 
+  executeMultiply(opcode, signed) {
+    const destinationRegister = (opcode >>> 9) & 0x07;
+    const mode = (opcode >>> 3) & 0x07;
+    const register = opcode & 0x07;
+    const validSource = mode === 0
+      || (mode >= 2 && mode <= 6)
+      || (mode === 7 && register <= 4);
+    if (!validSource) throw new IllegalEffectiveAddress();
+
+    const sourceWord = this.effectiveAddress(
+      mode,
+      register,
+      SIZE_WORD,
+      { immediate: true },
+    ).read();
+    const destinationWord = this.d[destinationRegister] & 0xffff;
+    const source = signed ? signExtend16(sourceWord) : sourceWord;
+    const destination = signed ? signExtend16(destinationWord) : destinationWord;
+    const result = (source * destination) >>> 0;
+    this.d[destinationRegister] = result;
+    this.setLogicalFlags(result, SIZE_LONG);
+  }
+
+  executeDivide(opcode, signed) {
+    const destinationRegister = (opcode >>> 9) & 0x07;
+    const mode = (opcode >>> 3) & 0x07;
+    const register = opcode & 0x07;
+    const validSource = mode === 0
+      || (mode >= 2 && mode <= 6)
+      || (mode === 7 && register <= 4);
+    if (!validSource) throw new IllegalEffectiveAddress();
+
+    const sourceWord = this.effectiveAddress(
+      mode,
+      register,
+      SIZE_WORD,
+      { immediate: true },
+    ).read();
+    const divisor = signed ? signExtend16(sourceWord) : sourceWord;
+    if (divisor === 0) {
+      this.exception(M68K_VECTOR.DIVIDE_BY_ZERO);
+      return;
+    }
+
+    const original = this.d[destinationRegister];
+    const dividend = signed ? original | 0 : original;
+    const quotient = Math.trunc(dividend / divisor);
+    const overflow = signed
+      ? quotient < -0x8000 || quotient > 0x7fff
+      : quotient > 0xffff;
+    if (overflow) {
+      this.sr = (this.sr & ~(SR_OVERFLOW | SR_CARRY)) | SR_OVERFLOW;
+      return;
+    }
+
+    const remainder = dividend - quotient * divisor;
+    this.d[destinationRegister] = (
+      (remainder & 0xffff) * 0x1_0000 + (quotient & 0xffff)
+    ) >>> 0;
+    this.setLogicalFlags(quotient, SIZE_WORD);
+  }
+
+  executeChk(opcode) {
+    const destinationRegister = (opcode >>> 9) & 0x07;
+    const mode = (opcode >>> 3) & 0x07;
+    const register = opcode & 0x07;
+    const validSource = mode === 0
+      || (mode >= 2 && mode <= 6)
+      || (mode === 7 && register <= 4);
+    if (!validSource) throw new IllegalEffectiveAddress();
+
+    const upperBound = signExtend16(this.effectiveAddress(
+      mode,
+      register,
+      SIZE_WORD,
+      { immediate: true },
+    ).read());
+    const value = signExtend16(this.d[destinationRegister] & 0xffff);
+    if (value < 0) {
+      this.sr |= SR_NEGATIVE;
+      this.exception(M68K_VECTOR.CHK);
+    } else if (value > upperBound) {
+      this.sr &= ~SR_NEGATIVE;
+      this.exception(M68K_VECTOR.CHK);
+    }
+  }
+
   executeMoveFromSr(opcode) {
     const mode = (opcode >>> 3) & 0x07;
     const register = opcode & 0x07;
@@ -1029,6 +1118,8 @@ export class MC68008 {
         this.executeUnlk(opcode & 0x07);
       } else if ((opcode & 0xf1c0) === 0x41c0) {
         this.executeLea(opcode);
+      } else if ((opcode & 0xf1c0) === 0x4180) {
+        this.executeChk(opcode);
       } else if ((opcode & 0xffc0) === 0x40c0) {
         this.executeMoveFromSr(opcode);
       } else if ((opcode & 0xffc0) === 0x44c0) {
@@ -1053,8 +1144,16 @@ export class MC68008 {
         this.executeAddSub(opcode, true);
       } else if ((opcode & 0xf000) === 0xb000) {
         this.executeCmp(opcode);
+      } else if ((opcode & 0xf1c0) === 0x80c0) {
+        this.executeDivide(opcode, false);
+      } else if ((opcode & 0xf1c0) === 0x81c0) {
+        this.executeDivide(opcode, true);
       } else if ((opcode & 0xf000) === 0x8000) {
         this.executeLogical(opcode, "or");
+      } else if ((opcode & 0xf1c0) === 0xc0c0) {
+        this.executeMultiply(opcode, false);
+      } else if ((opcode & 0xf1c0) === 0xc1c0) {
+        this.executeMultiply(opcode, true);
       } else if ((opcode & 0xf000) === 0xc000) {
         this.executeLogical(opcode, "and");
       } else if ((opcode & 0xf100) === 0x0100) {
