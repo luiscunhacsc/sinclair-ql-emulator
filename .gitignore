@@ -7,3 +7,6 @@ coverage/
 *.win
 .DS_Store
 
+# The GPL-licensed Minerva image below is intentionally distributed together
+# with its corresponding source and notices.
+!roms/minerva/minerva-1.98a1.bin

@@ -9,15 +9,17 @@ A primeira configuração-alvo é um Sinclair QL Issue 6:
 
 - MC68008 a 7,5 MHz;
 - 128 KiB de RAM;
-- ROM de 48 KiB fornecida pelo utilizador;
+- ROM interna de 48 KiB, incluindo a Minerva livre distribuída pelo projeto;
 - ZX8301 e os dois modos de vídeo originais;
 - ZX8302, Intel 8049/IPC, teclado, joysticks, som e RTC;
 - dois Microdrives com imagens `.mdv`;
 - temporização suficientemente rigorosa para executar software original.
 
-O emulador não inclui ROMs protegidas por direitos de autor. O utilizador pode
-carregar uma imagem obtida legitimamente do seu QL ou usar uma ROM alternativa
-com licença compatível, como a Minerva.
+O projeto inclui a versão inglesa da **Minerva 1.98a1**, distribuída nos termos
+da GPL-2.0-or-later, juntamente com uma cópia completa e imutável do respetivo
+código-fonte. As ROMs QDOS/Sinclair não livres continuam deliberadamente
+excluídas. Consulte [ROMs e licenças](roms/README.md) e os
+[avisos de terceiros](THIRD_PARTY_NOTICES.md).
 
 ## Executar
 
@@ -29,11 +31,26 @@ npm start
 
 Abrir `http://localhost:8080`.
 
+Para experimentar a Minerva, selecionar
+`roms/minerva/minerva-1.98a1.bin` no controlo **Selecionar ROM**. O ficheiro é
+processado apenas no navegador.
+
 ## Testes
 
 ```sh
 npm test
 ```
+
+O comando também confirma o tamanho e os hashes da ROM, do código-fonte
+correspondente e dos avisos exigidos pela licença.
+
+## Licença
+
+O código do emulador é Copyright (C) 2026 Luís Simões da Cunha e está licenciado
+sob a [GNU GPL versão 2 apenas](LICENSE). A Minerva é um componente independente
+de Laurence Reeves, sob GPL versão 2 ou posterior; os seus termos, proveniência
+e fontes correspondentes estão identificados em
+[`third_party/minerva/`](third_party/minerva/).
 
 ## Estado
 
