@@ -91,7 +91,7 @@ test("BSR guarda o endereço de retorno e RTS recupera-o", () => {
   assert.equal(cpu.a[7], initialSp);
 });
 
-test("uma instrução desconhecida entra pelo vetor de instrução ilegal", () => {
+test("ILLEGAL entra pelo vetor de instrução ilegal", () => {
   const { bus, cpu } = createCpu();
   const handler = RAM + 0x200;
   const rom = new Uint8Array(QL_MEMORY.internalRomSize);
@@ -101,7 +101,7 @@ test("uma instrução desconhecida entra pelo vetor de instrução ilegal", () =
   bus.loadRom(rom);
   cpu.reset();
   const initialSp = cpu.a[7];
-  bus.loadRam(RAM, Uint8Array.of(0xff, 0xff));
+  bus.loadRam(RAM, Uint8Array.of(0x4a, 0xfc));
 
   cpu.step();
   assert.equal(cpu.pc, handler);

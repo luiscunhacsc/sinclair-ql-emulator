@@ -138,7 +138,7 @@ test("a forma de memória desloca sempre uma palavra uma posição", () => {
 });
 
 test("RTE restaura SR, PC e a pilha de utilizador", () => {
-  const { bus, cpu } = createCpu([0xff, 0xff]);
+  const { bus, cpu } = createCpu([0x4a, 0xfc]); // ILLEGAL
   const userStack = RAM + 0x1000;
   cpu.usp = userStack;
   cpu.setStatusRegister(0x0004); // utilizador, Z=1

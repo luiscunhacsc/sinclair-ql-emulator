@@ -22,6 +22,8 @@ export const M68K_VECTOR = Object.freeze({
   CHK: 6,
   TRAPV: 7,
   PRIVILEGE_VIOLATION: 8,
+  LINE_1010_EMULATOR: 10,
+  LINE_1111_EMULATOR: 11,
   TRAP_BASE: 32,
 });
 
@@ -1325,7 +1327,11 @@ export class MC68008 {
     const opcode = this.fetch16();
 
     try {
-      if (opcode === 0x4e70) {
+      if ((opcode & 0xf000) === 0xa000) {
+        this.exception(M68K_VECTOR.LINE_1010_EMULATOR, opcodeAddress);
+      } else if ((opcode & 0xf000) === 0xf000) {
+        this.exception(M68K_VECTOR.LINE_1111_EMULATOR, opcodeAddress);
+      } else if (opcode === 0x4e70) {
         this.executeReset(opcodeAddress);
       } else if (opcode === 0x4e71) {
         // NOP: on the MC68008 the 16-bit opcode fetch itself takes eight clocks.
