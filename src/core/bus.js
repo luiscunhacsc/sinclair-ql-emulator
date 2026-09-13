@@ -43,6 +43,16 @@ export class QLBus {
     for (const device of this.devices) device.reset?.();
   }
 
+  tick(cycles) {
+    for (const device of this.devices) device.tick?.(cycles);
+  }
+
+  get interruptLevel() {
+    let level = 0;
+    for (const device of this.devices) level = Math.max(level, device.interruptLevel ?? 0);
+    return level;
+  }
+
   loadRam(address, bytes) {
     if (!(bytes instanceof Uint8Array)) {
       throw new TypeError("Os dados devem ser fornecidos como Uint8Array.");

@@ -55,3 +55,33 @@ test("a Minerva conclui o handshake IPC inicial e desenha na display RAM", async
   assert.ok(colouredPixels > 0, "a ROM não produziu qualquer píxel visível");
   assert.equal(cpu.lastException?.vector, 33, "esperava-se a atividade normal de TRAP #1");
 });
+
+test("a Minerva recebe e reconhece a interrupção periódica de frame", async () => {
+  const zx8301 = new ZX8301();
+  const zx8302 = new ZX8302();
+  const bus = new QLBus({ devices: [zx8301, zx8302] });
+  const rom = await readFile(new URL("../roms/minerva/minerva-1.98a1.bin", import.meta.url));
+  bus.loadRom(new Uint8Array(rom));
+  const cpu = new MC68008(bus);
+  cpu.reset();
+
+  const instructionLimit = 1_000_000;
+  let instructions = 0;
+  while (instructions < instructionLimit && cpu.lastException?.vector !== 26) {
+    const cycles = cpu.step();
+    bus.tick(cycles);
+    cpu.setInterruptLevel(bus.interruptLevel);
+    instructions += 1;
+  }
+
+  assert.ok(instructions < instructionLimit, "a ROM não recebeu a interrupção de nível 2");
+  assert.equal(cpu.lastException?.vector, 26);
+
+  while (instructions < instructionLimit && bus.interruptLevel !== 0) {
+    const cycles = cpu.step();
+    bus.tick(cycles);
+    cpu.setInterruptLevel(bus.interruptLevel);
+    instructions += 1;
+  }
+  assert.equal(bus.interruptLevel, 0, "a ROM não reconheceu a interrupção de frame");
+});

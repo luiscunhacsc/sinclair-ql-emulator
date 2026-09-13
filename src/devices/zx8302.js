@@ -6,6 +6,10 @@ const INTERRUPT_REGISTER = 0x18_021;
 // With no Microdrive running, the GAP input is high.  COMCTL (bit 6) is low
 // once the IPC has consumed the bit; bit 7 is the return bit from the IPC.
 const IDLE_IPC_STATUS = 0x08;
+const FRAME_INTERRUPT = 0x08;
+const CPU_HZ = 7_500_000;
+const FRAME_HZ = 50;
+const FRAME_CYCLES = CPU_HZ / FRAME_HZ;
 
 /**
  * Initial ZX8302 peripheral-controller register block.
@@ -24,6 +28,8 @@ export class ZX8302 {
     this.interruptMask = 0;
     this.ipcWrite = 0;
     this.ipcWrites = 0;
+    this.pendingInterrupts = 0;
+    this.frameCycleAccumulator = 0;
   }
 
   handles(address) {
@@ -35,7 +41,7 @@ export class ZX8302 {
 
   read8(address) {
     if (address === IPC_READ) return IDLE_IPC_STATUS;
-    if (address === INTERRUPT_REGISTER) return 0;
+    if (address === INTERRUPT_REGISTER) return this.pendingInterrupts;
     return 0xff;
   }
 
@@ -48,7 +54,22 @@ export class ZX8302 {
     } else if (address === INTERRUPT_REGISTER) {
       // Bits 7..5 are masks; writing ones to bits 4..0 acknowledges sources.
       this.interruptMask = value & 0xe0;
+      this.pendingInterrupts &= ~(value & 0x1f);
     }
+  }
+
+  tick(cycles) {
+    if (!Number.isFinite(cycles) || cycles < 0) {
+      throw new RangeError("O avanço do ZX8302 requer um número de ciclos não negativo.");
+    }
+    this.frameCycleAccumulator += cycles;
+    if (this.frameCycleAccumulator < FRAME_CYCLES) return;
+    this.frameCycleAccumulator %= FRAME_CYCLES;
+    this.pendingInterrupts |= FRAME_INTERRUPT;
+  }
+
+  get interruptLevel() {
+    return this.pendingInterrupts ? 2 : 0;
   }
 }
 
@@ -58,4 +79,6 @@ export const ZX8302_REGISTERS = Object.freeze({
   ipcRead: IPC_READ,
   interrupt: INTERRUPT_REGISTER,
   idleIpcStatus: IDLE_IPC_STATUS,
+  frameInterrupt: FRAME_INTERRUPT,
+  frameCycles: FRAME_CYCLES,
 });
