@@ -403,6 +403,9 @@ export class MC68008 {
   executeBranch(opcode) {
     const condition = (opcode >>> 8) & 0x0f;
     const encodedDisplacement = opcode & 0xff;
+    // 68000 word displacements are relative to the extension word address,
+    // not to the PC after that word has been fetched.
+    const displacementBase = this.pc;
     const displacement = encodedDisplacement === 0
       ? signExtend16(this.fetch16())
       : signExtend8(encodedDisplacement);
@@ -410,10 +413,10 @@ export class MC68008 {
 
     if (condition === 1) {
       this.push32(returnAddress);
-      this.pc = (this.pc + displacement) >>> 0;
+      this.pc = (displacementBase + displacement) >>> 0;
       this.cycles += 2;
     } else if (this.conditionTrue(condition)) {
-      this.pc = (this.pc + displacement) >>> 0;
+      this.pc = (displacementBase + displacement) >>> 0;
       this.cycles += 2;
     } else {
       this.cycles += encodedDisplacement === 0 ? 4 : 0;

@@ -67,6 +67,14 @@ test("BRA aceita deslocamentos curtos positivos e negativos", () => {
   assert.equal(cpu.pc, RAM + 4);
 });
 
+test("BRA.W calcula o deslocamento a partir da palavra de extensão", () => {
+  const { bus, cpu } = createCpu();
+  bus.loadRam(RAM, Uint8Array.of(0x60, 0x00, 0x00, 0x08)); // BRA.W +8
+
+  cpu.step();
+  assert.equal(cpu.pc, RAM + 10);
+});
+
 test("Bcc consulta corretamente os códigos de condição", () => {
   const { bus, cpu } = createCpu();
   bus.loadRam(RAM, Uint8Array.of(0x67, 0x06)); // BEQ +6
@@ -89,6 +97,20 @@ test("BSR guarda o endereço de retorno e RTS recupera-o", () => {
   cpu.step();
   assert.equal(cpu.pc, RAM + 2);
   assert.equal(cpu.a[7], initialSp);
+});
+
+test("BSR.W usa bases distintas para o destino e o endereço de retorno", () => {
+  const { bus, cpu } = createCpu();
+  const initialSp = cpu.a[7];
+  bus.loadRam(RAM, Uint8Array.of(0x61, 0x00, 0x00, 0x08)); // BSR.W +8
+  bus.loadRam(RAM + 10, Uint8Array.of(0x4e, 0x75));
+
+  cpu.step();
+  assert.equal(cpu.pc, RAM + 10);
+  assert.equal(bus.read32(initialSp - 4), RAM + 4);
+
+  cpu.step();
+  assert.equal(cpu.pc, RAM + 4);
 });
 
 test("ILLEGAL entra pelo vetor de instrução ilegal", () => {
