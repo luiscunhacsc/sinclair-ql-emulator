@@ -101,6 +101,8 @@ function runFrame(time) {
   try {
     while (running && cpu.cycles < targetCycles) {
       const cycles = cpu.step();
+      bus.tick(cycles);
+      cpu.setInterruptLevel(bus.interruptLevel);
       if (cycles === 0 && cpu.stopped) {
         stop(cpuStatus("CPU em STOP"));
         break;
@@ -141,6 +143,8 @@ runButton.addEventListener("click", () => {
 stepButton.addEventListener("click", () => {
   try {
     const cycles = cpu.step();
+    bus.tick(cycles);
+    cpu.setInterruptLevel(bus.interruptLevel);
     render();
     const exception = cpu.lastException ? `, vetor=${cpu.lastException.vector}` : "";
     setStatus(`${cpuStatus("Passo concluído")} Último passo=${cycles} ciclos${exception}`, "ready");

@@ -52,6 +52,11 @@ teclas, som ou dados série. Isto permite à Minerva concluir a configuração
 inicial do IPC e começar a desenhar na display RAM; a interpretação completa
 dos comandos do 8049 permanece para o marco seguinte.
 
+O mesmo bloco acumula ciclos do processador e levanta `pc.intrf` a 50 Hz. O
+barramento agrega o nível pedido pelos dispositivos e apresenta esta fonte ao
+MC68008 como interrupção de nível 2; uma escrita de `pc.intrf` em `pc_intr`
+reconhece e limpa a fonte.
+
 ## Marcos
 
 1. Barramento, ROM, RAM e testes de endianess.

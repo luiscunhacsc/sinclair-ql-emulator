@@ -28,3 +28,25 @@ test("o bloco conserva controlo de transmissão e máscara de interrupções", (
   assert.equal(zx8302.interruptMask, 0);
   assert.equal(zx8302.ipcWrites, 0);
 });
+
+test("gera e reconhece a interrupção de frame de 50 Hz", () => {
+  const zx8302 = new ZX8302();
+  const bus = new QLBus({ devices: [zx8302] });
+
+  bus.tick(ZX8302_REGISTERS.frameCycles - 1);
+  assert.equal(bus.interruptLevel, 0);
+  bus.tick(1);
+  assert.equal(bus.read8(ZX8302_REGISTERS.interrupt), ZX8302_REGISTERS.frameInterrupt);
+  assert.equal(bus.interruptLevel, 2);
+
+  bus.write8(ZX8302_REGISTERS.interrupt, ZX8302_REGISTERS.frameInterrupt);
+  assert.equal(bus.read8(ZX8302_REGISTERS.interrupt), 0);
+  assert.equal(bus.interruptLevel, 0);
+});
+
+test("conserva a fase de frame e valida o avanço temporal", () => {
+  const zx8302 = new ZX8302();
+  zx8302.tick(ZX8302_REGISTERS.frameCycles * 2 + 17);
+  assert.equal(zx8302.frameCycleAccumulator, 17);
+  assert.throws(() => zx8302.tick(-1), RangeError);
+});
