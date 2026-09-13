@@ -22,6 +22,7 @@ const image = context.createImageData(ZX8301_DISPLAY.width, ZX8301_DISPLAY.heigh
 let running = false;
 let lastFrameTime = performance.now();
 let loadedRomName = "";
+let animationFrameId = null;
 
 function hexadecimal(value, width = 8) {
   return `0x${value.toString(16).padStart(width, "0")}`;
@@ -55,6 +56,8 @@ function render(time = performance.now()) {
 
 function stop(message, kind = "ready") {
   running = false;
+  if (animationFrameId !== null) cancelAnimationFrame(animationFrameId);
+  animationFrameId = null;
   updateControls();
   if (message) setStatus(message, kind);
 }
@@ -87,6 +90,7 @@ async function loadDefaultRom() {
 }
 
 function runFrame(time) {
+  animationFrameId = null;
   if (!running) return;
   const elapsed = Math.min((time - lastFrameTime) / 1000, 0.05);
   const cycleBudget = Math.min(Math.max(elapsed * CPU_HZ, 1), MAX_FRAME_CYCLES);
@@ -106,7 +110,7 @@ function runFrame(time) {
   }
 
   lastFrameTime = time;
-  if (running) requestAnimationFrame(runFrame);
+  if (running) animationFrameId = requestAnimationFrame(runFrame);
 }
 
 romInput.addEventListener("change", async () => {
@@ -129,7 +133,7 @@ runButton.addEventListener("click", () => {
   lastFrameTime = performance.now();
   updateControls();
   setStatus(cpuStatus("Em execução"), "ready");
-  requestAnimationFrame(runFrame);
+  animationFrameId = requestAnimationFrame(runFrame);
 });
 
 stepButton.addEventListener("click", () => {
