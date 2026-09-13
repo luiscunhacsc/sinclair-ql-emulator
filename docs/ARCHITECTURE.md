@@ -83,3 +83,8 @@ clocks, e uma leitura de palavra exige duas transferências.
 O tratamento funcional destes modos está separado da afinação final dos ciclos.
 A contenção de memória introduzida pelo ZX8301 será acrescentada na camada do
 barramento quando o vídeo estiver operacional.
+
+Os deslocamentos de 16 bits de `BRA`, `Bcc` e `BSR` usam como base o endereço
+da palavra de extensão, conforme o MC68000. O endereço de retorno de `BSR.W`
+continua a ser o PC posterior à extensão; esta distinção é necessária para a
+Minerva entrar corretamente em `SB_START/ini_disp`.

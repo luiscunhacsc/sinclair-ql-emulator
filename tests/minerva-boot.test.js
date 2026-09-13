@@ -38,7 +38,12 @@ test("a Minerva conclui o handshake IPC inicial e desenha na display RAM", async
   const cpu = new MC68008(bus);
   cpu.reset();
 
-  for (let instructions = 0; instructions < 700_000; instructions += 1) cpu.step();
+  const instructionLimit = 1_000_000;
+  let instructions = 0;
+  while (instructions < instructionLimit && zx8302.ipcWrites < 9) {
+    cpu.step();
+    instructions += 1;
+  }
 
   const frame = zx8301.renderFrame(bus);
   let colouredPixels = 0;
@@ -46,7 +51,7 @@ test("a Minerva conclui o handshake IPC inicial e desenha na display RAM", async
     if (frame[offset] || frame[offset + 1] || frame[offset + 2]) colouredPixels += 1;
   }
 
-  assert.ok(zx8302.ipcWrites >= 9, "a ROM não concluiu o comando IPC de arranque");
+  assert.ok(instructions < instructionLimit, "a ROM não concluiu o comando IPC de arranque");
   assert.ok(colouredPixels > 0, "a ROM não produziu qualquer píxel visível");
   assert.equal(cpu.lastException?.vector, 33, "esperava-se a atividade normal de TRAP #1");
 });
