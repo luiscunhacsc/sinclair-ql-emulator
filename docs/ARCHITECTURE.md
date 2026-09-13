@@ -30,6 +30,19 @@ O descodificador de dispositivos será refinado à medida que ZX8301 e ZX8302
 forem implementados. A CPU expõe 20 linhas de endereço, pelo que todos os
 endereços são normalizados para 20 bits.
 
+### Primeiro bloco do ZX8301
+
+O barramento encaminha endereços mapeados para dispositivos independentes. O
+ZX8301 implementa inicialmente o registo write-only `MC_STAT` (`0x18063`): bit
+1 para blanking, bit 3 para MODE 8 e bit 7 para selecionar o banco de display
+RAM em `0x20000` ou `0x28000`. Os 32 KiB do banco ativo são convertidos num
+frame RGBA de 512 × 256, incluindo a duplicação horizontal do MODE 8 e o estado
+de flash que reinicia em cada linha.
+
+Esta implementação segue as secções 10.2 e 10.3 do documento original
+[QL Technical Guide](https://8bit-wiki.de/Sinclair/QL/DOKUMENTATIONEN/QL%20Technical%20Guide.pdf),
+publicado pela Sinclair Research Ltd.
+
 ## Marcos
 
 1. Barramento, ROM, RAM e testes de endianess.

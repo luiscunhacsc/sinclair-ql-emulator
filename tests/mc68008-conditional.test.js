@@ -50,8 +50,8 @@ test("Scc suporta destinos em memória e os seus efeitos laterais", () => {
   assert.equal(cpu.a[7], RAM + 0x402);
 });
 
-test("DBF decrementa a palavra baixa e ramifica até chegar a -1", () => {
-  const { cpu } = createCpu([0x51, 0xc8, 0xff, 0xfc]); // DBF D0,$20000
+test("DBF usa o endereço da extensão como base do deslocamento", () => {
+  const { cpu } = createCpu([0x51, 0xc8, 0xff, 0xfe]); // DBF D0,$20000
   cpu.d[0] = 0x1234_0001;
 
   cpu.step();
@@ -72,7 +72,7 @@ test("DBcc não decrementa nem ramifica quando a condição é verdadeira", () =
 });
 
 test("DBcc termina sem ramificar quando o contador passa de zero para -1", () => {
-  const { cpu } = createCpu([0x56, 0xc8, 0xff, 0xfc]); // DBNE D0,$20000
+  const { cpu } = createCpu([0x56, 0xc8, 0xff, 0xfe]); // DBNE D0,$20000
   cpu.d[0] = 0xface_0000;
   cpu.sr |= M68K_SR.ZERO;
   cpu.step();
