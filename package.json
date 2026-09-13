@@ -2,14 +2,15 @@
   "name": "sinclair-ql-emulator",
   "version": "0.1.0",
   "private": true,
+  "license": "GPL-2.0-only",
   "type": "module",
   "description": "A browser-based Sinclair QL emulator developed from documented hardware behaviour.",
   "scripts": {
     "start": "node scripts/serve.mjs",
-    "test": "node --test"
+    "test": "npm run verify:distribution && node --test",
+    "verify:distribution": "node scripts/verify-distribution.mjs"
   },
   "engines": {
     "node": ">=20"
   }
 }
-
