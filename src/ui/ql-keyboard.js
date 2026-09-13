@@ -62,13 +62,18 @@ const KEYROW_BY_CODE = Object.freeze({
   Digit7: 63,
 });
 
+const MODERN_KEY_ALIASES = Object.freeze({
+  Backspace: Object.freeze({ code: "ArrowLeft", control: true }),
+});
+
 export function qlKeyDefinition(event) {
-  const keyrow = KEYROW_BY_CODE[event.code];
+  const alias = MODERN_KEY_ALIASES[event.code];
+  const keyrow = KEYROW_BY_CODE[alias?.code ?? event.code];
   if (keyrow === undefined || event.metaKey) return null;
   return {
     keyrow,
     shift: Boolean(event.shiftKey),
-    control: Boolean(event.ctrlKey),
+    control: Boolean(alias?.control || event.ctrlKey),
     alt: Boolean(event.altKey),
   };
 }
