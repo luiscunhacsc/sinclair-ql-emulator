@@ -22,6 +22,7 @@ export const M68K_VECTOR = Object.freeze({
   CHK: 6,
   TRAPV: 7,
   PRIVILEGE_VIOLATION: 8,
+  TRACE: 9,
   LINE_1010_EMULATOR: 10,
   LINE_1111_EMULATOR: 11,
   AUTOVECTOR_BASE: 24,
@@ -1354,6 +1355,8 @@ export class MC68008 {
       return this.cycles - initialCycles;
     }
     if (this.stopped) return 0;
+    const traceEnabled = Boolean(this.sr & SR_TRACE);
+    const previousException = this.lastException;
     const opcodeAddress = this.pc;
     const opcode = this.fetch16();
 
@@ -1475,6 +1478,10 @@ export class MC68008 {
     } catch (error) {
       if (!(error instanceof IllegalEffectiveAddress)) throw error;
       this.exception(M68K_VECTOR.ILLEGAL_INSTRUCTION, opcodeAddress);
+    }
+
+    if (traceEnabled && this.lastException === previousException) {
+      this.exception(M68K_VECTOR.TRACE, this.pc);
     }
 
     return this.cycles - initialCycles;

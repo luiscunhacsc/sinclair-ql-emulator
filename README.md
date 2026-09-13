@@ -40,7 +40,7 @@ npm test
 O projeto contém a estrutura do emulador, barramento de 20 bits, mapa inicial de
 ROM/RAM e carregamento local da ROM. O primeiro bloco do MC68008 já implementa
 reset, registos, pilhas de supervisor/utilizador, acesso alinhado, exceção de
-instrução ilegal, emulação das linhas A/F, interrupções autovetorizadas,
+instrução ilegal, emulação das linhas A/F, trace, interrupções autovetorizadas,
 violação de privilégio e códigos de condição. Estão
 implementados NOP, MOVEQ, MOVE/MOVEA, LEA, CLR, TST, NEG/NEGX, NOT, EXT, SWAP,
 TAS, transferências de SR/CCR/USP, ADD/ADDA, SUB/SUBA, CMP/CMPA, ADDQ/SUBQ,
