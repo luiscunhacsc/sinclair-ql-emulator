@@ -3,6 +3,11 @@ import { MC68008 } from "./core/mc68008.js";
 import { ZX8301, ZX8301_DISPLAY } from "./devices/zx8301.js";
 import { ZX8302 } from "./devices/zx8302.js";
 import { qlKeyDefinition } from "./ui/ql-keyboard.js";
+import {
+  adjacentPresentationMode,
+  normalizePresentationMode,
+  presentationLabel,
+} from "./ui/presentation-mode.js";
 
 const DEFAULT_ROM = "./roms/minerva/minerva-1.98a1.bin";
 const CPU_HZ = 7_500_000;
@@ -17,6 +22,9 @@ const status = document.querySelector("#status");
 const runButton = document.querySelector("#run");
 const stepButton = document.querySelector("#step");
 const resetButton = document.querySelector("#reset");
+const fullscreenButton = document.querySelector("#fullscreen");
+const computerStage = document.querySelector(".computer-stage");
+const presentationButtons = [...document.querySelectorAll("[data-presentation-option]")];
 const screenMessage = document.querySelector("#screen-message");
 const canvas = document.querySelector("#screen");
 const context = canvas.getContext("2d", { alpha: false });
@@ -26,6 +34,8 @@ let running = false;
 let lastFrameTime = performance.now();
 let loadedRomName = "";
 let animationFrameId = null;
+
+const PRESENTATION_STORAGE_KEY = "sinclair-ql-presentation";
 
 function hexadecimal(value, width = 8) {
   return `0x${value.toString(16).padStart(width, "0")}`;
@@ -43,6 +53,47 @@ function updateControls() {
   resetButton.disabled = !enabled;
   runButton.textContent = running ? "Pausar" : "Executar";
   runButton.dataset.running = String(running);
+}
+
+function storePresentationMode(mode) {
+  try {
+    localStorage.setItem(PRESENTATION_STORAGE_KEY, mode);
+  } catch {
+    // Storage can be unavailable in private or embedded browsing contexts.
+  }
+}
+
+function setPresentationMode(value, { persist = true, focus = false } = {}) {
+  const mode = normalizePresentationMode(value);
+  computerStage.dataset.presentation = mode;
+  computerStage.setAttribute("aria-label", presentationLabel(mode));
+
+  for (const button of presentationButtons) {
+    const selected = button.dataset.presentationOption === mode;
+    button.setAttribute("aria-checked", String(selected));
+    button.tabIndex = selected ? 0 : -1;
+    if (selected && focus) button.focus();
+  }
+
+  if (persist) storePresentationMode(mode);
+}
+
+function initialPresentationMode() {
+  try {
+    return normalizePresentationMode(localStorage.getItem(PRESENTATION_STORAGE_KEY));
+  } catch {
+    return "monitor";
+  }
+}
+
+function updateFullscreenControl() {
+  const active = document.fullscreenElement === computerStage;
+  fullscreenButton.setAttribute("aria-pressed", String(active));
+  fullscreenButton.textContent = active ? "Sair do ecrã inteiro" : "Ecrã inteiro";
+  fullscreenButton.setAttribute(
+    "aria-label",
+    active ? "Sair do modo de ecrã inteiro" : "Mostrar a apresentação em ecrã inteiro",
+  );
 }
 
 function cpuStatus(prefix) {
@@ -166,6 +217,45 @@ canvas.addEventListener("keydown", (event) => {
 
 document.querySelector(".screen-panel").addEventListener("click", () => canvas.focus());
 
+for (const button of presentationButtons) {
+  button.addEventListener("click", () => {
+    setPresentationMode(button.dataset.presentationOption);
+  });
+
+  button.addEventListener("keydown", (event) => {
+    let mode = null;
+    if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+      mode = adjacentPresentationMode(computerStage.dataset.presentation, 1);
+    } else if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+      mode = adjacentPresentationMode(computerStage.dataset.presentation, -1);
+    } else if (event.key === "Home") {
+      mode = "screen";
+    } else if (event.key === "End") {
+      mode = "computer";
+    }
+
+    if (!mode) return;
+    event.preventDefault();
+    setPresentationMode(mode, { focus: true });
+  });
+}
+
+if (typeof computerStage.requestFullscreen !== "function") {
+  fullscreenButton.hidden = true;
+} else {
+  fullscreenButton.addEventListener("click", async () => {
+    try {
+      if (document.fullscreenElement === computerStage) await document.exitFullscreen();
+      else await computerStage.requestFullscreen();
+    } catch {
+      setStatus("O navegador não permitiu ativar o ecrã inteiro.", "error");
+    }
+  });
+  document.addEventListener("fullscreenchange", updateFullscreenControl);
+}
+
+setPresentationMode(initialPresentationMode(), { persist: false });
+updateFullscreenControl();
 updateControls();
 render();
 loadDefaultRom();

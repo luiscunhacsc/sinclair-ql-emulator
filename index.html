@@ -14,23 +14,70 @@
         <p>Base técnica do emulador do Sinclair QL Issue 6.</p>
       </header>
 
-      <section class="monitor" aria-label="Monitor do Sinclair QL">
-        <img
-          class="monitor-frame"
-          src="./assets/monitor/ql-monitor-frame.png"
-          alt=""
-          aria-hidden="true"
-        >
-        <div class="screen-panel">
-          <canvas
-            id="screen"
-            width="512"
-            height="256"
-            tabindex="0"
-            aria-label="Ecrã do Sinclair QL; clique para usar o teclado"
-          ></canvas>
-          <div id="screen-message" class="screen-message">A carregar a Minerva…</div>
+      <section class="presentation" aria-labelledby="presentation-label">
+        <div class="presentation-toolbar">
+          <span id="presentation-label" class="presentation-label">Apresentação</span>
+          <div class="presentation-switch" role="radiogroup" aria-labelledby="presentation-label">
+            <button
+              type="button"
+              role="radio"
+              aria-checked="false"
+              tabindex="-1"
+              data-presentation-option="screen"
+            >Ecrã</button>
+            <button
+              type="button"
+              role="radio"
+              aria-checked="true"
+              data-presentation-option="monitor"
+            >Monitor</button>
+            <button
+              type="button"
+              role="radio"
+              aria-checked="false"
+              tabindex="-1"
+              data-presentation-option="computer"
+            >QL completo</button>
+          </div>
+          <button
+            id="fullscreen"
+            class="fullscreen-button"
+            type="button"
+            aria-pressed="false"
+            aria-label="Mostrar a apresentação em ecrã inteiro"
+          >
+            Ecrã inteiro
+          </button>
         </div>
+
+        <div class="computer-stage" data-presentation="monitor" aria-label="Sinclair QL com monitor">
+          <div class="stage-surface">
+            <img
+              class="presentation-art monitor-frame"
+              src="./assets/monitor/ql-monitor-frame.png"
+              alt=""
+              aria-hidden="true"
+            >
+            <img
+              class="presentation-art full-system-frame"
+              src="./assets/compositions/qlwithmonitor.png"
+              alt=""
+              aria-hidden="true"
+            >
+
+            <div class="screen-panel">
+              <canvas
+                id="screen"
+                width="512"
+                height="256"
+                tabindex="0"
+                aria-label="Ecrã do Sinclair QL; clique para usar o teclado"
+              ></canvas>
+              <div id="screen-message" class="screen-message">A carregar a Minerva…</div>
+            </div>
+          </div>
+        </div>
+
       </section>
 
       <section class="controls">
