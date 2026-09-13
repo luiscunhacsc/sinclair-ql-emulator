@@ -2,6 +2,7 @@ import { QLBus } from "./core/bus.js";
 import { MC68008 } from "./core/mc68008.js";
 import { ZX8301, ZX8301_DISPLAY } from "./devices/zx8301.js";
 import { ZX8302 } from "./devices/zx8302.js";
+import { qlKeyDefinition } from "./ui/ql-keyboard.js";
 
 const DEFAULT_ROM = "./roms/minerva/minerva-1.98a1.bin";
 const CPU_HZ = 7_500_000;
@@ -78,6 +79,7 @@ function installRom(bytes, name) {
   bus.loadRom(bytes);
   loadedRomName = name;
   resetMachine();
+  canvas.focus();
 }
 
 async function loadDefaultRom() {
@@ -154,6 +156,15 @@ stepButton.addEventListener("click", () => {
 });
 
 resetButton.addEventListener("click", resetMachine);
+
+canvas.addEventListener("keydown", (event) => {
+  const key = qlKeyDefinition(event);
+  if (!key) return;
+  zx8302.enqueueKey(key.keyrow, key);
+  event.preventDefault();
+});
+
+document.querySelector(".screen-panel").addEventListener("click", () => canvas.focus());
 
 updateControls();
 render();

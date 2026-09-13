@@ -33,7 +33,9 @@ Abrir `http://localhost:8080`.
 
 A Minerva incluída é carregada automaticamente. Os controlos permitem executar,
 pausar, avançar uma instrução ou reiniciar a máquina; o seletor **Outra ROM**
-continua disponível para testes locais. A ROM é processada apenas no navegador.
+continua disponível para testes locais. Clique no ecrã para enviar o teclado do
+navegador ao QL, incluindo F1–F5 e as teclas de cursor. A ROM é processada apenas
+no navegador.
 
 ## Testes
 
@@ -57,8 +59,9 @@ e fontes correspondentes estão identificados em
 O projeto contém a estrutura do emulador, barramento de 20 bits, mapa inicial de
 ROM/RAM, carregamento automático da Minerva e o primeiro bloco de vídeo do
 ZX8301: `MC_STAT`, blanking, MODE 4/8, dois bancos de ecrã e conversão para um
-canvas RGBA de 512 × 256. Um primeiro bloco do ZX8302 fornece os registos e o
-handshake IPC inativo necessários para a Minerva começar a desenhar. O primeiro bloco do MC68008 já implementa
+canvas RGBA de 512 × 256. O ZX8302 fornece os registos, a comunicação IPC
+bit-serial, o teclado e a interrupção periódica necessários para a Minerva
+chegar ao ecrã interativo do SuperBASIC. O primeiro bloco do MC68008 já implementa
 reset, registos, pilhas de supervisor/utilizador, acesso alinhado, exceção de
 instrução ilegal, emulação das linhas A/F, trace, interrupções autovetorizadas,
 violação de privilégio e códigos de condição. Estão

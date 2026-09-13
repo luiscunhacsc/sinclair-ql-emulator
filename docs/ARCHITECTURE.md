@@ -45,17 +45,26 @@ publicado pela Sinclair Research Ltd.
 
 ### Primeiro bloco do ZX8302/IPC
 
-O bloco inicial do ZX8302 descodifica os registos de controlo/transmissão
-(`0x18002`/`0x18003`) e leitura/interrupt (`0x18020`/`0x18021`). O handshake
-bit-serial confirma imediatamente cada bit, com o IPC ainda inativo e sem
-teclas, som ou dados série. Isto permite à Minerva concluir a configuração
-inicial do IPC e começar a desenhar na display RAM; a interpretação completa
-dos comandos do 8049 permanece para o marco seguinte.
+O ZX8302 descodifica os registos de controlo/transmissão (`0x18002`/`0x18003`)
+e leitura/interrupt (`0x18020`/`0x18021`). A ligação ao IPC interpreta comandos
+e respostas bit a bit, incluindo estado e leitura do buffer do teclado. Os
+comandos de som e série ainda não implementados consomem os respetivos
+parâmetros e devolvem um estado inativo, mantendo o fluxo sincronizado.
+
+A interface converte `KeyboardEvent.code` na matriz física inglesa do QL e
+entrega até sete definições por comando `rdkb`. Shift, Control e Alt seguem no
+nibble de modificadores usado pela rotina de tradução da Minerva.
 
 O mesmo bloco acumula ciclos do processador e levanta `pc.intrf` a 50 Hz. O
 barramento agrega o nível pedido pelos dispositivos e apresenta esta fonte ao
 MC68008 como interrupção de nível 2; uma escrita de `pc.intrf` em `pc_intr`
 reconhece e limpa a fonte.
+
+Na configuração inicial sem cartucho, a linha GAP permanece alta. Ativar a
+máscara `pc.maskg` levanta por isso `pc.intrg`; enquanto a máscara continuar
+ativa, reconhecer a fonte volta a solicitá-la. Este comportamento permite ao
+servidor de Microdrive da Minerva detetar a ausência de meio e terminar a
+pesquisa por `boot`/`mdv1_boot`.
 
 ## Marcos
 
