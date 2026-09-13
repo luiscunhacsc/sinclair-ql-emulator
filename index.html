@@ -88,6 +88,11 @@
           <span>Outra ROM</span>
           <input id="rom-file" type="file" accept=".rom,.bin,application/octet-stream">
         </label>
+        <label class="file-control">
+          <span>Microdrive 1</span>
+          <input id="mdv-file" type="file" accept=".mdv,application/octet-stream">
+        </label>
+        <button id="eject-mdv" type="button" disabled>Ejetar MDV1</button>
       </section>
 
       <p id="status" role="status" aria-live="polite">
@@ -95,7 +100,7 @@
       </p>
       <p class="keyboard-hint">
         Clique no ecrã para usar o teclado. Backspace (Ctrl+← no QL) apaga à esquerda;
-        Ctrl+→ apaga sob o cursor.
+        Ctrl+→ apaga sob o cursor. Os cartuchos .mdv são montados apenas para leitura.
       </p>
     </main>
     <script type="module" src="./src/main.js"></script>

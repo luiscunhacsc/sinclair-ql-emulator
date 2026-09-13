@@ -1,7 +1,11 @@
+import { MicrodriveImage, MICRODRIVE_FORMAT } from "./microdrive.js";
+
 const TRANSMIT_CONTROL = 0x18_002;
 const IPC_WRITE = 0x18_003;
 const IPC_READ = 0x18_020;
 const INTERRUPT_REGISTER = 0x18_021;
+const MICRODRIVE_TRACK_1 = 0x18_022;
+const MICRODRIVE_TRACK_2 = 0x18_023;
 
 // With no Microdrive running, the GAP input is high.  COMCTL (bit 6) is low
 // once the IPC has consumed the bit; bit 7 is the return bit from the IPC.
@@ -22,6 +26,13 @@ const IPC_TEST_COMMAND = 0x0f;
 const CPU_HZ = 7_500_000;
 const FRAME_HZ = 50;
 const FRAME_CYCLES = CPU_HZ / FRAME_HZ;
+const MICRODRIVE_MODE = 0x10;
+const MODE_MASK = 0x18;
+const MICRODRIVE_READ_READY = 0x04;
+const MICRODRIVE_GAP = 0x08;
+const MICRODRIVE_GAP_POLLS = 24;
+const MICRODRIVE_GAP_CYCLES = CPU_HZ / 200;
+const MICRODRIVE_DRIVE_COUNT = 8;
 
 /**
  * Initial ZX8302 peripheral-controller register block.
@@ -32,6 +43,7 @@ const FRAME_CYCLES = CPU_HZ / FRAME_HZ;
  */
 export class ZX8302 {
   constructor() {
+    this.microdrives = Array(MICRODRIVE_DRIVE_COUNT).fill(null);
     this.reset();
   }
 
@@ -49,18 +61,34 @@ export class ZX8302 {
     this.keyboardQueue = [];
     this.pendingInterrupts = 0;
     this.frameCycleAccumulator = 0;
+    this.activeMicrodrive = 0;
+    this.microdriveControl = -1;
+    this.microdrivePhase = "header-gap";
+    this.microdriveGapPolls = 0;
+    this.microdriveReadyPolls = 0;
+    this.microdriveStreamRegion = null;
+    this.microdriveDataOffset = 0;
+    this.microdriveSector = 0;
+    this.microdriveAdvanceSectorPending = false;
+    this.microdriveDataReads = 0;
+    this.microdriveGapCycleAccumulator = 0;
   }
 
   handles(address) {
     return address === TRANSMIT_CONTROL
       || address === IPC_WRITE
       || address === IPC_READ
-      || address === INTERRUPT_REGISTER;
+      || address === INTERRUPT_REGISTER
+      || address === MICRODRIVE_TRACK_1
+      || address === MICRODRIVE_TRACK_2;
   }
 
   read8(address) {
-    if (address === IPC_READ) return IDLE_IPC_STATUS | (this.ipcReturnBit << 7);
+    if (address === IPC_READ) return this.readSharedStatus();
     if (address === INTERRUPT_REGISTER) return this.pendingInterrupts;
+    if (address === MICRODRIVE_TRACK_1 || address === MICRODRIVE_TRACK_2) {
+      return this.readMicrodriveData();
+    }
     return 0xff;
   }
 
@@ -71,16 +99,155 @@ export class ZX8302 {
       this.ipcWrite = value & 0xff;
       this.ipcWrites += 1;
       this.receiveIpcBit(value);
+    } else if (address === IPC_READ) {
+      this.writeMicrodriveControl(value);
     } else if (address === INTERRUPT_REGISTER) {
       // Bits 7..5 are masks; writing ones to bits 4..0 acknowledges sources.
       this.interruptMask = value & 0xe0;
       this.pendingInterrupts &= ~(value & 0x1f);
       // With no cartridge inserted the GAP input remains asserted. Enabling
       // its source therefore requests service immediately, as on a real QL.
-      if (this.interruptMask & GAP_INTERRUPT_MASK) {
+      if ((this.interruptMask & GAP_INTERRUPT_MASK) && !this.microdrives.some(Boolean)) {
         this.pendingInterrupts |= GAP_INTERRUPT;
       }
     }
+  }
+
+  mountMicrodrive(slot, bytes, { name = `mdv${slot}.mdv` } = {}) {
+    this.validateMicrodriveSlot(slot);
+    const image = bytes instanceof MicrodriveImage ? bytes : new MicrodriveImage(bytes, { name });
+    this.microdrives[slot - 1] = image;
+    if (this.activeMicrodrive === slot) this.resetMicrodriveStream();
+    return image;
+  }
+
+  unmountMicrodrive(slot) {
+    this.validateMicrodriveSlot(slot);
+    const image = this.microdrives[slot - 1];
+    this.microdrives[slot - 1] = null;
+    if (this.activeMicrodrive === slot) this.resetMicrodriveStream();
+    return image;
+  }
+
+  microdriveAt(slot) {
+    this.validateMicrodriveSlot(slot);
+    return this.microdrives[slot - 1];
+  }
+
+  validateMicrodriveSlot(slot) {
+    if (!Number.isInteger(slot) || slot < 1 || slot > MICRODRIVE_DRIVE_COUNT) {
+      throw new RangeError("O número do Microdrive deve estar entre 1 e 8.");
+    }
+  }
+
+  readSharedStatus() {
+    const ipcBit = this.ipcReturnBit << 7;
+    if ((this.transmitControl & MODE_MASK) !== MICRODRIVE_MODE) {
+      return IDLE_IPC_STATUS | ipcBit;
+    }
+
+    if (this.activeMicrodrive === 0) return IDLE_IPC_STATUS | ipcBit;
+    if (!this.microdrives[this.activeMicrodrive - 1]) return ipcBit;
+
+    if (this.microdrivePhase === "header-gap" || this.microdrivePhase === "record-gap") {
+      if (
+        this.microdrivePhase === "header-gap"
+        && this.microdriveGapPolls === 0
+        && this.microdriveAdvanceSectorPending
+      ) {
+        this.microdriveSector = (this.microdriveSector + 1) % MICRODRIVE_FORMAT.sectorCount;
+        this.microdriveAdvanceSectorPending = false;
+      }
+      const status = this.microdriveGapPolls === 0 ? MICRODRIVE_GAP : 0;
+      this.microdriveGapPolls += 1;
+      if (this.microdriveGapPolls >= MICRODRIVE_GAP_POLLS) {
+        this.microdrivePhase = this.microdrivePhase === "header-gap" ? "header" : "record";
+        this.microdriveGapPolls = 0;
+        this.microdriveReadyPolls = 0;
+        this.microdriveStreamRegion = this.microdrivePhase;
+        this.microdriveDataOffset = 0;
+      }
+      return status | ipcBit;
+    }
+
+    this.microdriveReadyPolls += 1;
+    const readyPollLimit = this.microdrivePhase === "header"
+      ? MICRODRIVE_FORMAT.headerSize
+      : MICRODRIVE_FORMAT.recordSize;
+    if (this.microdriveReadyPolls >= readyPollLimit) {
+      if (this.microdrivePhase === "record") this.microdriveAdvanceSectorPending = true;
+      this.microdrivePhase = this.microdrivePhase === "header" ? "record-gap" : "header-gap";
+      this.microdriveReadyPolls = 0;
+      this.microdriveGapPolls = 0;
+    }
+    return MICRODRIVE_READ_READY | ipcBit;
+  }
+
+  readMicrodriveData() {
+    if ((this.transmitControl & MODE_MASK) !== MICRODRIVE_MODE) return 0;
+    const image = this.microdrives[this.activeMicrodrive - 1];
+    if (!image) return 0;
+
+    let value = 0;
+    if (
+      this.microdriveStreamRegion === "header"
+      && this.microdriveDataOffset < MICRODRIVE_FORMAT.headerSize
+    ) {
+      value = image.readHeaderByte(this.microdriveSector, this.microdriveDataOffset);
+      this.microdriveDataOffset += 1;
+      this.microdriveDataReads += 1;
+    } else if (
+      this.microdriveStreamRegion === "record"
+      && this.microdriveDataOffset < MICRODRIVE_FORMAT.recordSize
+    ) {
+      value = image.readRecordByte(this.microdriveSector, this.microdriveDataOffset);
+      this.microdriveDataOffset += 1;
+      this.microdriveDataReads += 1;
+    }
+
+    return value;
+  }
+
+  writeMicrodriveControl(value) {
+    const control = value & 0x0f;
+    const previous = this.microdriveControl;
+
+    if (previous === 0x03 && control === 0x01) {
+      this.selectMicrodrive(1);
+    } else if (previous === 0x02 && control === 0x00) {
+      this.selectMicrodrive(
+        this.activeMicrodrive > 0 && this.activeMicrodrive < MICRODRIVE_DRIVE_COUNT
+          ? this.activeMicrodrive + 1
+          : 0,
+      );
+    } else if (
+      previous === 0x02
+      && control === 0x02
+      && this.microdriveStreamRegion === "record"
+      && this.microdriveDataOffset === 4
+    ) {
+      // QDOS reads the four-byte block header, then asks the controller to
+      // skip the eight-byte PLL preamble before the 512-byte payload.
+      this.microdriveDataOffset += 8;
+    }
+
+    this.microdriveControl = control;
+  }
+
+  selectMicrodrive(slot) {
+    this.activeMicrodrive = slot;
+    this.resetMicrodriveStream();
+  }
+
+  resetMicrodriveStream() {
+    this.microdrivePhase = "header-gap";
+    this.microdriveGapPolls = 0;
+    this.microdriveReadyPolls = 0;
+    this.microdriveStreamRegion = null;
+    this.microdriveDataOffset = 0;
+    this.microdriveSector = 0;
+    this.microdriveAdvanceSectorPending = false;
+    this.microdriveGapCycleAccumulator = 0;
   }
 
   enqueueKey(keyrow, { shift = false, control = false, alt = false } = {}) {
@@ -177,9 +344,20 @@ export class ZX8302 {
       throw new RangeError("O avanço do ZX8302 requer um número de ciclos não negativo.");
     }
     this.frameCycleAccumulator += cycles;
-    if (this.frameCycleAccumulator < FRAME_CYCLES) return;
-    this.frameCycleAccumulator %= FRAME_CYCLES;
-    this.pendingInterrupts |= FRAME_INTERRUPT;
+    if (this.frameCycleAccumulator >= FRAME_CYCLES) {
+      this.frameCycleAccumulator %= FRAME_CYCLES;
+      this.pendingInterrupts |= FRAME_INTERRUPT;
+    }
+
+    if (this.activeMicrodrive > 0) {
+      this.microdriveGapCycleAccumulator += cycles;
+      if (this.microdriveGapCycleAccumulator >= MICRODRIVE_GAP_CYCLES) {
+        this.microdriveGapCycleAccumulator %= MICRODRIVE_GAP_CYCLES;
+        if (this.interruptMask & GAP_INTERRUPT_MASK) this.pendingInterrupts |= GAP_INTERRUPT;
+      }
+    } else {
+      this.microdriveGapCycleAccumulator = 0;
+    }
   }
 
   get interruptLevel() {
@@ -191,10 +369,18 @@ export const ZX8302_REGISTERS = Object.freeze({
   transmitControl: TRANSMIT_CONTROL,
   ipcWrite: IPC_WRITE,
   ipcRead: IPC_READ,
+  microdriveControl: IPC_READ,
   interrupt: INTERRUPT_REGISTER,
   idleIpcStatus: IDLE_IPC_STATUS,
   frameInterrupt: FRAME_INTERRUPT,
   gapInterrupt: GAP_INTERRUPT,
   gapInterruptMask: GAP_INTERRUPT_MASK,
   frameCycles: FRAME_CYCLES,
+  microdriveTrack1: MICRODRIVE_TRACK_1,
+  microdriveTrack2: MICRODRIVE_TRACK_2,
+  microdriveMode: MICRODRIVE_MODE,
+  microdriveReadReady: MICRODRIVE_READ_READY,
+  microdriveGap: MICRODRIVE_GAP,
+  microdriveGapPolls: MICRODRIVE_GAP_POLLS,
+  microdriveGapCycles: MICRODRIVE_GAP_CYCLES,
 });
