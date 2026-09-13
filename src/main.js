@@ -1,13 +1,15 @@
 import { QLBus } from "./core/bus.js";
 import { MC68008 } from "./core/mc68008.js";
 import { ZX8301, ZX8301_DISPLAY } from "./devices/zx8301.js";
+import { ZX8302 } from "./devices/zx8302.js";
 
 const DEFAULT_ROM = "./roms/minerva/minerva-1.98a1.bin";
 const CPU_HZ = 7_500_000;
 const MAX_FRAME_CYCLES = CPU_HZ / 20;
 
 const zx8301 = new ZX8301();
-const bus = new QLBus({ devices: [zx8301] });
+const zx8302 = new ZX8302();
+const bus = new QLBus({ devices: [zx8301, zx8302] });
 const cpu = new MC68008(bus);
 const romInput = document.querySelector("#rom-file");
 const status = document.querySelector("#status");
