@@ -43,6 +43,15 @@ Esta implementação segue as secções 10.2 e 10.3 do documento original
 [QL Technical Guide](https://8bit-wiki.de/Sinclair/QL/DOKUMENTATIONEN/QL%20Technical%20Guide.pdf),
 publicado pela Sinclair Research Ltd.
 
+### Primeiro bloco do ZX8302/IPC
+
+O bloco inicial do ZX8302 descodifica os registos de controlo/transmissão
+(`0x18002`/`0x18003`) e leitura/interrupt (`0x18020`/`0x18021`). O handshake
+bit-serial confirma imediatamente cada bit, com o IPC ainda inativo e sem
+teclas, som ou dados série. Isto permite à Minerva concluir a configuração
+inicial do IPC e começar a desenhar na display RAM; a interpretação completa
+dos comandos do 8049 permanece para o marco seguinte.
+
 ## Marcos
 
 1. Barramento, ROM, RAM e testes de endianess.
