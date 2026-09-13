@@ -966,12 +966,13 @@ export class MC68008 {
     const register = opcode & 0x07;
 
     if (mode === 1) {
+      const displacementBase = this.pc;
       const displacement = signExtend16(this.fetch16());
       if (this.conditionTrue(condition)) return;
 
       const counter = ((this.d[register] & 0xffff) - 1) & 0xffff;
       this.d[register] = ((this.d[register] & 0xffff_0000) | counter) >>> 0;
-      if (counter !== 0xffff) this.pc = (this.pc + displacement) >>> 0;
+      if (counter !== 0xffff) this.pc = (displacementBase + displacement) >>> 0;
       return;
     }
 

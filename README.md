@@ -31,9 +31,9 @@ npm start
 
 Abrir `http://localhost:8080`.
 
-Para experimentar a Minerva, selecionar
-`roms/minerva/minerva-1.98a1.bin` no controlo **Selecionar ROM**. O ficheiro é
-processado apenas no navegador.
+A Minerva incluída é carregada automaticamente. Os controlos permitem executar,
+pausar, avançar uma instrução ou reiniciar a máquina; o seletor **Outra ROM**
+continua disponível para testes locais. A ROM é processada apenas no navegador.
 
 ## Testes
 
@@ -55,7 +55,9 @@ e fontes correspondentes estão identificados em
 ## Estado
 
 O projeto contém a estrutura do emulador, barramento de 20 bits, mapa inicial de
-ROM/RAM e carregamento local da ROM. O primeiro bloco do MC68008 já implementa
+ROM/RAM, carregamento automático da Minerva e o primeiro bloco de vídeo do
+ZX8301: `MC_STAT`, blanking, MODE 4/8, dois bancos de ecrã e conversão para um
+canvas RGBA de 512 × 256. O primeiro bloco do MC68008 já implementa
 reset, registos, pilhas de supervisor/utilizador, acesso alinhado, exceção de
 instrução ilegal, emulação das linhas A/F, trace, interrupções autovetorizadas,
 violação de privilégio e códigos de condição. Estão

@@ -14,21 +14,25 @@
         <p>Base técnica do emulador do Sinclair QL Issue 6.</p>
       </header>
 
-      <section class="screen-panel" aria-label="Ecrã do Sinclair QL">
-        <canvas width="512" height="256"></canvas>
-        <div class="screen-message">A aguardar uma ROM de 48 KiB</div>
+      <section class="monitor" aria-label="Monitor do Sinclair QL">
+        <div class="screen-panel">
+          <canvas id="screen" width="512" height="256"></canvas>
+          <div id="screen-message" class="screen-message">A carregar a Minerva…</div>
+        </div>
       </section>
 
       <section class="controls">
+        <button id="run" type="button" disabled>Executar</button>
+        <button id="step" type="button" disabled>Passo</button>
+        <button id="reset" type="button" disabled>Reiniciar</button>
         <label class="file-control">
-          <span>Selecionar ROM</span>
+          <span>Outra ROM</span>
           <input id="rom-file" type="file" accept=".rom,.bin,application/octet-stream">
         </label>
-        <button id="run" type="button" disabled>Executar uma instrução</button>
       </section>
 
       <p id="status" role="status" aria-live="polite">
-        A ROM é processada apenas neste navegador e não é enviada para qualquer servidor.
+        A iniciar a Minerva 1.98a1 incluída no projeto…
       </p>
     </main>
     <script type="module" src="./src/main.js"></script>

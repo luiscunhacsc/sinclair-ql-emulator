@@ -4,10 +4,24 @@ const INTERNAL_RAM_START = 0x20_000;
 const INTERNAL_RAM_SIZE = 128 * 1024;
 
 export class QLBus {
-  constructor() {
+  constructor({ devices = [] } = {}) {
     this.rom = new Uint8Array(INTERNAL_ROM_SIZE);
     this.ram = new Uint8Array(INTERNAL_RAM_SIZE);
     this.romLoaded = false;
+    this.devices = [];
+    for (const device of devices) this.registerDevice(device);
+  }
+
+  registerDevice(device) {
+    if (!device || typeof device.handles !== "function") {
+      throw new TypeError("Um dispositivo deve implementar handles(address).");
+    }
+    this.devices.push(device);
+    return device;
+  }
+
+  deviceAt(address) {
+    return this.devices.find((device) => device.handles(address)) ?? null;
   }
 
   loadRom(bytes) {
@@ -25,6 +39,10 @@ export class QLBus {
     this.ram.fill(0);
   }
 
+  resetDevices() {
+    for (const device of this.devices) device.reset?.();
+  }
+
   loadRam(address, bytes) {
     if (!(bytes instanceof Uint8Array)) {
       throw new TypeError("Os dados devem ser fornecidos como Uint8Array.");
@@ -40,6 +58,8 @@ export class QLBus {
   read8(address) {
     const normalized = address & ADDRESS_MASK;
     if (normalized < INTERNAL_ROM_SIZE) return this.rom[normalized];
+    const device = this.deviceAt(normalized);
+    if (device) return device.read8?.(normalized) ?? 0xff;
     if (
       normalized >= INTERNAL_RAM_START &&
       normalized < INTERNAL_RAM_START + INTERNAL_RAM_SIZE
@@ -51,6 +71,11 @@ export class QLBus {
 
   write8(address, value) {
     const normalized = address & ADDRESS_MASK;
+    const device = this.deviceAt(normalized);
+    if (device) {
+      device.write8?.(normalized, value & 0xff);
+      return;
+    }
     if (
       normalized >= INTERNAL_RAM_START &&
       normalized < INTERNAL_RAM_START + INTERNAL_RAM_SIZE

@@ -29,6 +29,15 @@ header { margin-bottom: 24px; }
 h1 { margin: 4px 0; font-size: clamp(2rem, 6vw, 4.5rem); font-weight: 300; }
 header p { margin: 0; color: #b9b9b4; }
 
+.monitor {
+  position: relative;
+  width: 100%;
+  padding: clamp(18px, 4vw, 42px);
+  border-radius: 18px 18px 10px 10px;
+  background: linear-gradient(145deg, #343434, #161616 70%);
+  box-shadow: inset 0 1px #ffffff18, inset 0 -12px 30px #0008, 0 18px 40px #0008;
+}
+
 .screen-panel {
   position: relative;
   display: grid;
@@ -42,6 +51,7 @@ header p { margin: 0; color: #b9b9b4; }
 
 canvas { width: 100%; height: 100%; image-rendering: pixelated; }
 .screen-message { position: absolute; color: #61d6a8; font-family: monospace; }
+.screen-message[hidden] { display: none; }
 
 .controls { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 22px; }
 .file-control, button {
@@ -55,6 +65,7 @@ canvas { width: 100%; height: 100%; image-rendering: pixelated; }
 }
 .file-control input { max-width: 260px; margin-left: 10px; }
 button:disabled { cursor: not-allowed; opacity: .45; }
+#run[data-running="true"] { border-color: #ef233c; color: #ff9aa5; }
 #status { min-height: 1.5em; color: #b9b9b4; }
 #status[data-kind="ready"] { color: #61d6a8; }
 #status[data-kind="error"] { color: #ff7b89; }
@@ -63,4 +74,3 @@ button:disabled { cursor: not-allowed; opacity: .45; }
   main { padding: 22px; }
   .file-control input { display: block; margin: 8px 0 0; }
 }
-
