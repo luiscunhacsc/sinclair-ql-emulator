@@ -16,7 +16,7 @@ body {
 }
 
 main {
-  width: min(920px, calc(100% - 32px));
+  width: min(1120px, calc(100% - 32px));
   padding: 38px;
   border: 1px solid #4a4a4a;
   border-radius: 20px 20px 8px 8px;
@@ -29,23 +29,99 @@ header { margin-bottom: 24px; }
 h1 { margin: 4px 0; font-size: clamp(2rem, 6vw, 4.5rem); font-weight: 300; }
 header p { margin: 0; color: #b9b9b4; }
 
-.monitor {
-  position: relative;
-  width: 100%;
-  aspect-ratio: 1374 / 1145;
-  filter: drop-shadow(0 18px 40px #000a);
+.presentation { display: grid; gap: 14px; }
+
+.presentation-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
-.monitor-frame {
+.presentation-label {
+  color: #b9b9b4;
+  font-size: .82rem;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.presentation-switch {
+  display: inline-grid;
+  grid-auto-flow: column;
+  padding: 3px;
+  border: 1px solid #50504d;
+  border-radius: 10px;
+  background: #1118;
+  box-shadow: inset 0 1px 3px #0008;
+}
+
+.presentation-switch button {
+  min-height: 36px;
+  padding: 7px 13px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #aaa9a4;
+  font-size: .88rem;
+  white-space: nowrap;
+  transition: background-color 160ms ease, color 160ms ease, box-shadow 160ms ease;
+}
+
+.presentation-switch button:hover { color: #fff; }
+.presentation-switch button[aria-checked="true"] {
+  background: #3b3b38;
+  color: #fff;
+  box-shadow: 0 1px 5px #0009, inset 0 1px #ffffff14;
+}
+.presentation-switch button:focus-visible,
+.fullscreen-button:focus-visible { outline: 2px solid #61d6a8; outline-offset: 2px; }
+
+.fullscreen-button { margin-left: auto; min-height: 38px; padding-block: 7px; }
+
+.computer-stage {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 14px;
+  isolation: isolate;
+}
+
+.stage-surface {
+  position: relative;
+  width: 100%;
+  isolation: isolate;
+  transition: width 220ms ease, aspect-ratio 220ms ease;
+}
+
+.computer-stage[data-presentation="screen"] .stage-surface { aspect-ratio: 2 / 1; }
+.computer-stage[data-presentation="monitor"] .stage-surface {
+  width: min(100%, 920px);
+  aspect-ratio: 1374 / 1145;
+}
+.computer-stage[data-presentation="computer"] .stage-surface { aspect-ratio: 1536 / 1024; }
+
+.presentation-art {
   position: absolute;
   z-index: 1;
   inset: 0;
   width: 100%;
   height: 100%;
   object-fit: contain;
+  opacity: 0;
   pointer-events: none;
   user-select: none;
+  transition: opacity 180ms ease;
 }
+
+.monitor-frame {
+  filter: drop-shadow(0 18px 40px #000a);
+}
+
+.full-system-frame { filter: drop-shadow(0 18px 34px #000a); }
+.computer-stage[data-presentation="monitor"] .monitor-frame,
+.computer-stage[data-presentation="computer"] .full-system-frame { opacity: 1; }
 
 .screen-panel {
   position: absolute;
@@ -60,6 +136,28 @@ header p { margin: 0; color: #b9b9b4; }
   border-radius: 10% / 15%;
   background: #050505;
   box-shadow: inset 0 0 28px #000;
+  transition:
+    left 220ms ease,
+    top 220ms ease,
+    width 220ms ease,
+    height 220ms ease,
+    border-radius 220ms ease,
+    box-shadow 220ms ease;
+}
+
+.computer-stage[data-presentation="screen"] .screen-panel {
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+  box-shadow: 0 0 0 1px #555, 0 18px 46px #0008;
+}
+
+.computer-stage[data-presentation="computer"] .screen-panel {
+  left: 30.24%;
+  top: 12.65%;
+  width: 38.6%;
+  height: 41.08%;
 }
 
 canvas {
@@ -69,9 +167,22 @@ canvas {
   background: #000;
   image-rendering: pixelated;
 }
+.computer-stage[data-presentation="screen"] canvas { width: 100%; height: 100%; }
 canvas:focus-visible { outline: 2px solid #61d6a8; outline-offset: 3px; }
+.computer-stage[data-presentation="screen"] canvas:focus-visible { outline-offset: -3px; }
 .screen-message { position: absolute; color: #61d6a8; font-family: monospace; }
 .screen-message[hidden] { display: none; }
+
+.computer-stage:fullscreen {
+  width: 100vw;
+  height: 100vh;
+  padding: 18px;
+  border-radius: 0;
+  background: radial-gradient(circle at center, #272927, #090a09 72%);
+}
+.computer-stage:fullscreen[data-presentation="screen"] .stage-surface { width: min(100vw, 200vh); }
+.computer-stage:fullscreen[data-presentation="monitor"] .stage-surface { width: min(100vw, 120vh); }
+.computer-stage:fullscreen[data-presentation="computer"] .stage-surface { width: min(100vw, 150vh); }
 
 .controls { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 22px; }
 .file-control, button {
@@ -93,5 +204,16 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 
 @media (max-width: 600px) {
   main { padding: 22px; }
+  .presentation-toolbar { align-items: stretch; flex-direction: column; }
+  .presentation-label { align-self: flex-start; }
+  .presentation-switch { grid-auto-flow: row; }
+  .fullscreen-button { width: 100%; margin-left: 0; }
   .file-control input { display: block; margin: 8px 0 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stage-surface,
+  .presentation-art,
+  .screen-panel,
+  .presentation-switch button { transition: none; }
 }
