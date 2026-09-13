@@ -63,6 +63,7 @@ header p { margin: 0; color: #b9b9b4; }
 }
 
 canvas { width: 100%; height: 100%; image-rendering: pixelated; }
+canvas:focus-visible { outline: 2px solid #61d6a8; outline-offset: -4px; }
 .screen-message { position: absolute; color: #61d6a8; font-family: monospace; }
 .screen-message[hidden] { display: none; }
 
@@ -82,6 +83,7 @@ button:disabled { cursor: not-allowed; opacity: .45; }
 #status { min-height: 1.5em; color: #b9b9b4; }
 #status[data-kind="ready"] { color: #61d6a8; }
 #status[data-kind="error"] { color: #ff7b89; }
+.keyboard-hint { margin-bottom: 0; color: #8e8e89; font-size: .9rem; }
 
 @media (max-width: 600px) {
   main { padding: 22px; }
