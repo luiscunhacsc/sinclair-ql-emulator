@@ -583,6 +583,74 @@ export class MC68008 {
     this.setLogicalFlags(result, size);
   }
 
+  executeMovem(opcode) {
+    const memoryToRegisters = Boolean(opcode & 0x0400);
+    const size = opcode & 0x0040 ? SIZE_LONG : SIZE_WORD;
+    const mode = (opcode >>> 3) & 0x07;
+    const addressRegister = opcode & 0x07;
+    const validAddress = memoryToRegisters
+      ? mode === 2
+        || mode === 3
+        || mode === 5
+        || mode === 6
+        || (mode === 7 && addressRegister <= 3)
+      : mode === 2
+        || mode === 4
+        || mode === 5
+        || mode === 6
+        || (mode === 7 && addressRegister <= 1);
+    if (!validAddress) throw new IllegalEffectiveAddress();
+
+    const registerMask = this.fetch16();
+
+    if (mode === 4) {
+      const dataRegisters = Uint32Array.from(this.d);
+      const addressRegisters = Uint32Array.from(this.a);
+      let address = this.a[addressRegister];
+
+      for (let bit = 0; bit < 16; bit += 1) {
+        if (!(registerMask & (1 << bit))) continue;
+        address = (address - size) >>> 0;
+        const registerIndex = 15 - bit;
+        const value = registerIndex < 8
+          ? dataRegisters[registerIndex]
+          : addressRegisters[registerIndex - 8];
+        this.writeSize(address, size, value);
+      }
+
+      this.a[addressRegister] = address;
+      return;
+    }
+
+    const postIncrement = mode === 3;
+    let address = postIncrement
+      ? this.a[addressRegister]
+      : this.controlAddress(mode, addressRegister);
+
+    for (let registerIndex = 0; registerIndex < 16; registerIndex += 1) {
+      if (!(registerMask & (1 << registerIndex))) continue;
+
+      if (memoryToRegisters) {
+        const rawValue = this.readSize(address, size);
+        const value = size === SIZE_WORD ? signExtend16(rawValue) >>> 0 : rawValue;
+        const isPostIncrementRegister = postIncrement && registerIndex === addressRegister + 8;
+        if (!isPostIncrementRegister) {
+          if (registerIndex < 8) this.d[registerIndex] = value;
+          else this.a[registerIndex - 8] = value;
+        }
+      } else {
+        const value = registerIndex < 8
+          ? this.d[registerIndex]
+          : this.a[registerIndex - 8];
+        this.writeSize(address, size, value);
+      }
+
+      address = (address + size) >>> 0;
+    }
+
+    if (postIncrement) this.a[addressRegister] = address;
+  }
+
   executeSwap(register) {
     const value = this.d[register];
     const result = ((value << 16) | (value >>> 16)) >>> 0;
@@ -1267,6 +1335,8 @@ export class MC68008 {
         this.executeSwap(opcode & 0x07);
       } else if ((opcode & 0xffb8) === 0x4880) {
         this.executeExt(opcode);
+      } else if ((opcode & 0xfb80) === 0x4880) {
+        this.executeMovem(opcode);
       } else if ((opcode & 0xffc0) === 0x4800) {
         this.executeNbcd(opcode);
       } else if ((opcode & 0xffc0) === 0x4840) {

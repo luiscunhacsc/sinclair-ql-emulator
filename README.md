@@ -43,8 +43,8 @@ reset, registos, pilhas de supervisor/utilizador, acesso alinhado, exceção de
 instrução ilegal, violação de privilégio e códigos de condição. Estão
 implementados NOP, MOVEQ, MOVE/MOVEA, LEA, CLR, TST, NEG/NEGX, NOT, EXT, SWAP,
 TAS, transferências de SR/CCR/USP, ADD/ADDA, SUB/SUBA, CMP/CMPA, ADDQ/SUBQ,
-ADDX/SUBX, ABCD/SBCD/NBCD, CMPM, MULU/MULS, DIVU/DIVS, CHK, OR, AND, EOR, EXG,
-operações de bits, shifts e rotações, as variantes imediatas, BRA/Bcc, BSR,
+ADDX/SUBX, ABCD/SBCD/NBCD, CMPM, MOVEM, MULU/MULS, DIVU/DIVS, CHK, OR, AND, EOR,
+EXG, operações de bits, shifts e rotações, as variantes imediatas, BRA/Bcc, BSR,
 DBcc, Scc, JMP, JSR, PEA, LINK/UNLK, TRAP/TRAPV, RESET, STOP, RTS, RTR e RTE,
 bem como os principais modos de endereçamento do MC68000. A cobertura da CPU
 será aumentada incrementalmente e confrontada com os testes públicos
