@@ -25,3 +25,12 @@ test("conserva modificadores e ignora teclas alheias à matriz", () => {
   assert.equal(qlKeyDefinition({ code: "F12" }), null);
   assert.equal(qlKeyDefinition({ code: "KeyA", metaKey: true }), null);
 });
+
+test("traduz Backspace no equivalente Ctrl+seta esquerda do QL", () => {
+  assert.deepEqual(qlKeyDefinition({ code: "Backspace" }), {
+    keyrow: QL_KEYBOARD.keyrowByCode.ArrowLeft,
+    shift: false,
+    control: true,
+    alt: false,
+  });
+});

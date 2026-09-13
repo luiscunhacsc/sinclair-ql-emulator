@@ -34,8 +34,9 @@ Abrir `http://localhost:8080`.
 A Minerva incluída é carregada automaticamente. Os controlos permitem executar,
 pausar, avançar uma instrução ou reiniciar a máquina; o seletor **Outra ROM**
 continua disponível para testes locais. Clique no ecrã para enviar o teclado do
-navegador ao QL, incluindo F1–F5 e as teclas de cursor. A ROM é processada apenas
-no navegador.
+navegador ao QL. Para facilitar a utilização com teclados modernos, Backspace é
+traduzido automaticamente no atalho Ctrl+seta esquerda do QL; Ctrl+seta direita
+apaga o carácter sob o cursor. A ROM é processada apenas no navegador.
 
 ## Testes
 
