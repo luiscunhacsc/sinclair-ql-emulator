@@ -24,6 +24,7 @@ export const M68K_VECTOR = Object.freeze({
   PRIVILEGE_VIOLATION: 8,
   LINE_1010_EMULATOR: 10,
   LINE_1111_EMULATOR: 11,
+  AUTOVECTOR_BASE: 24,
   TRAP_BASE: 32,
 });
 
@@ -110,6 +111,8 @@ export class MC68008 {
     this.cycles = 0;
     this.stopped = false;
     this.lastException = null;
+    this.interruptLevel = 0;
+    this.level7Pending = false;
   }
 
   reset() {
@@ -120,6 +123,8 @@ export class MC68008 {
     this.cycles = 0;
     this.stopped = false;
     this.lastException = null;
+    this.interruptLevel = 0;
+    this.level7Pending = false;
     this.ssp = this.read32(0);
     this.a[7] = this.ssp;
     this.pc = this.read32(4);
@@ -144,6 +149,27 @@ export class MC68008 {
       }
     }
     this.sr = next;
+  }
+
+  setInterruptLevel(level) {
+    if (!Number.isInteger(level) || level < 0 || level > 7) {
+      throw new RangeError("O nível de interrupção deve ser um inteiro entre 0 e 7.");
+    }
+    if (level === 7 && this.interruptLevel !== 7) this.level7Pending = true;
+    if (level !== 7 && this.interruptLevel === 7) this.level7Pending = false;
+    this.interruptLevel = level;
+  }
+
+  pendingInterruptLevel() {
+    if (this.interruptLevel === 7) return this.level7Pending ? 7 : 0;
+    const mask = (this.sr & SR_INTERRUPT_MASK) >>> 8;
+    return this.interruptLevel > mask ? this.interruptLevel : 0;
+  }
+
+  acceptInterrupt(level) {
+    this.exception(M68K_VECTOR.AUTOVECTOR_BASE + level, this.pc);
+    this.sr = (this.sr & ~SR_INTERRUPT_MASK) | (level << 8);
+    if (level === 7) this.level7Pending = false;
   }
 
   read8(address) {
@@ -1321,8 +1347,13 @@ export class MC68008 {
   }
 
   step() {
-    if (this.stopped) return 0;
     const initialCycles = this.cycles;
+    const interruptLevel = this.pendingInterruptLevel();
+    if (interruptLevel !== 0) {
+      this.acceptInterrupt(interruptLevel);
+      return this.cycles - initialCycles;
+    }
+    if (this.stopped) return 0;
     const opcodeAddress = this.pc;
     const opcode = this.fetch16();
 
