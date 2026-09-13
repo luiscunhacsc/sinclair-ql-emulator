@@ -57,7 +57,8 @@ e fontes correspondentes estão identificados em
 O projeto contém a estrutura do emulador, barramento de 20 bits, mapa inicial de
 ROM/RAM, carregamento automático da Minerva e o primeiro bloco de vídeo do
 ZX8301: `MC_STAT`, blanking, MODE 4/8, dois bancos de ecrã e conversão para um
-canvas RGBA de 512 × 256. O primeiro bloco do MC68008 já implementa
+canvas RGBA de 512 × 256. Um primeiro bloco do ZX8302 fornece os registos e o
+handshake IPC inativo necessários para a Minerva começar a desenhar. O primeiro bloco do MC68008 já implementa
 reset, registos, pilhas de supervisor/utilizador, acesso alinhado, exceção de
 instrução ilegal, emulação das linhas A/F, trace, interrupções autovetorizadas,
 violação de privilégio e códigos de condição. Estão
