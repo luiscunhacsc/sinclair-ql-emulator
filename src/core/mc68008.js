@@ -651,6 +651,31 @@ export class MC68008 {
     if (postIncrement) this.a[addressRegister] = address;
   }
 
+  executeMovep(opcode) {
+    const dataRegister = (opcode >>> 9) & 0x07;
+    const operationMode = (opcode >>> 6) & 0x07;
+    const addressRegister = opcode & 0x07;
+    const size = operationMode & 0x01 ? SIZE_LONG : SIZE_WORD;
+    const registerToMemory = Boolean(operationMode & 0x02);
+    const address = (this.a[addressRegister] + signExtend16(this.fetch16())) >>> 0;
+    const byteCount = size === SIZE_LONG ? 4 : 2;
+
+    if (registerToMemory) {
+      const value = this.d[dataRegister];
+      for (let index = 0; index < byteCount; index += 1) {
+        const shift = (byteCount - index - 1) * 8;
+        this.write8(address + index * 2, value >>> shift);
+      }
+      return;
+    }
+
+    let value = 0;
+    for (let index = 0; index < byteCount; index += 1) {
+      value = ((value << 8) | this.read8(address + index * 2)) >>> 0;
+    }
+    this.writeDataRegister(dataRegister, size, value);
+  }
+
   executeSwap(register) {
     const value = this.d[register];
     const result = ((value << 16) | (value >>> 16)) >>> 0;
@@ -1397,6 +1422,8 @@ export class MC68008 {
         this.executeBcdPair(opcode, false);
       } else if ((opcode & 0xf000) === 0xc000) {
         this.executeLogical(opcode, "and");
+      } else if ((opcode & 0xf138) === 0x0108) {
+        this.executeMovep(opcode);
       } else if ((opcode & 0xf100) === 0x0100) {
         this.executeBit(opcode, true);
       } else if ((opcode & 0xff00) === 0x0800) {
