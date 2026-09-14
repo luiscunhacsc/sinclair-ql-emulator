@@ -66,6 +66,25 @@ ativa, reconhecer a fonte volta a solicitá-la. Este comportamento permite ao
 servidor de Microdrive da Minerva detetar a ausência de meio e terminar a
 pesquisa por `boot`/`mdv1_boot`.
 
+### Microdrive só de leitura
+
+`src/devices/microdrive.js` valida e encapsula imagens QLAY `.mdv`. Cada imagem
+tem 255 setores de 686 bytes: preâmbulo e cabeçalho, preâmbulo e registo QDOS,
+seguidos dos bytes físicos de enchimento. O ZX8302 expõe os 16 bytes de cabeçalho
+e os 612 bytes do registo nos endereços de pista `0x18022`/`0x18023`, sinalizando
+GAP e buffer de leitura em `0x18020`.
+
+O mapa de registos e os sinais seguem o *QL Technical Guide*. A disposição da
+imagem foi também confrontada com o formato publicado pelo
+[QLAY2](https://github.com/xXorAa/qlay2) e pelo projeto MIT
+[MicroPicoDrive](https://github.com/gusmanb/micropicodrive).
+
+A escrita no mesmo endereço reproduz a seleção em cadeia de até oito unidades.
+O primeiro marco monta `mdv1_` apenas para leitura e conserva o cartucho durante
+RESET. A imagem é copiada ao montar, pelo que o ficheiro escolhido pelo utilizador
+nunca é modificado. Escrita, persistência, conversão de ZIP/QLPAK e fidelidade de
+temporização ao nível das duas pistas ficam para os marcos seguintes.
+
 ## Marcos
 
 1. Barramento, ROM, RAM e testes de endianess.

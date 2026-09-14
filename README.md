@@ -38,6 +38,18 @@ navegador ao QL. Para facilitar a utilização com teclados modernos, Backspace 
 traduzido automaticamente no atalho Ctrl+seta esquerda do QL; Ctrl+seta direita
 apaga o carácter sob o cursor. A ROM é processada apenas no navegador.
 
+### Carregar software
+
+O controlo **Microdrive 1** monta, apenas para leitura, uma imagem `.mdv` no
+formato QLAY de 174 930 bytes. A máquina reinicia quando o cartucho é montado;
+prima F1 ou F2 no ecrã inicial para o QL procurar `mdv1_boot`. **Ejetar MDV1**
+remove o cartucho sem alterar o ficheiro original. Todo o conteúdo permanece no
+navegador.
+
+O suporte direto aos contentores `.qlpak` e aos ZIPs com metadados QDOS será
+construído sobre este dispositivo. Esses formatos ainda não podem ser montados
+diretamente nesta versão.
+
 ## Testes
 
 ```sh
@@ -62,8 +74,10 @@ ROM/RAM, carregamento automático da Minerva e o primeiro bloco de vídeo do
 ZX8301: `MC_STAT`, blanking, MODE 4/8, dois bancos de ecrã e conversão para um
 canvas RGBA de 512 × 256. O ZX8302 fornece os registos, a comunicação IPC
 bit-serial, o teclado e a interrupção periódica necessários para a Minerva
-chegar ao ecrã interativo do SuperBASIC. O primeiro bloco do MC68008 já implementa
-reset, registos, pilhas de supervisor/utilizador, acesso alinhado, exceção de
+chegar ao ecrã interativo do SuperBASIC. O primeiro Microdrive aceita imagens
+QLAY `.mdv` apenas para leitura, incluindo seleção em cadeia, GAP, cabeçalhos e
+registos de setor através dos registos do ZX8302. O primeiro bloco do MC68008 já
+implementa reset, registos, pilhas de supervisor/utilizador, acesso alinhado, exceção de
 instrução ilegal, emulação das linhas A/F, trace, interrupções autovetorizadas,
 violação de privilégio e códigos de condição. Estão
 implementados NOP, MOVEQ, MOVE/MOVEA, LEA, CLR, TST, NEG/NEGX, NOT, EXT, SWAP,

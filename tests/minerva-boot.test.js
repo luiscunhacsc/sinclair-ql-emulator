@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { QLBus } from "../src/core/bus.js";
 import { MC68008 } from "../src/core/mc68008.js";
+import { MICRODRIVE_FORMAT } from "../src/devices/microdrive.js";
 import { ZX8301 } from "../src/devices/zx8301.js";
 import { ZX8302 } from "../src/devices/zx8302.js";
 
@@ -124,4 +125,28 @@ test("a Minerva recebe F1 e texto pelo IPC até ao SuperBASIC interativo", async
   assert.equal(zx8301.mode, 4);
   assert.equal(zx8302.keyboardQueue.length, 0);
   assert.ok(greenPixelsInCommandWindow > 20, "o comando não apareceu na janela #0");
+});
+
+test("a Minerva seleciona MDV1 e inicia a leitura de uma imagem montada", async () => {
+  const zx8302 = new ZX8302();
+  zx8302.mountMicrodrive(1, new Uint8Array(MICRODRIVE_FORMAT.imageSize));
+  const bus = new QLBus({ devices: [new ZX8301(), zx8302] });
+  const rom = await readFile(new URL("../roms/minerva/minerva-1.98a1.bin", import.meta.url));
+  bus.loadRom(new Uint8Array(rom));
+  const cpu = new MC68008(bus);
+  cpu.reset();
+  zx8302.enqueueKey(57); // F1: inicia o QL e a pesquisa de mdv1_boot.
+
+  const instructionLimit = 2_000_000;
+  let instructions = 0;
+  while (instructions < instructionLimit && zx8302.microdriveDataReads === 0) {
+    const cycles = cpu.step();
+    bus.tick(cycles);
+    cpu.setInterruptLevel(bus.interruptLevel);
+    instructions += 1;
+  }
+
+  assert.ok(instructions < instructionLimit, "a Minerva não começou a ler MDV1");
+  assert.equal(zx8302.activeMicrodrive, 1);
+  assert.ok(zx8302.microdriveDataReads > 0);
 });

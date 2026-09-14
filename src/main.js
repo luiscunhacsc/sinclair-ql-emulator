@@ -18,6 +18,8 @@ const zx8302 = new ZX8302();
 const bus = new QLBus({ devices: [zx8301, zx8302] });
 const cpu = new MC68008(bus);
 const romInput = document.querySelector("#rom-file");
+const microdriveInput = document.querySelector("#mdv-file");
+const ejectMicrodriveButton = document.querySelector("#eject-mdv");
 const status = document.querySelector("#status");
 const runButton = document.querySelector("#run");
 const stepButton = document.querySelector("#step");
@@ -51,6 +53,7 @@ function updateControls() {
   runButton.disabled = !enabled;
   stepButton.disabled = !enabled || running;
   resetButton.disabled = !enabled;
+  ejectMicrodriveButton.disabled = !zx8302.microdriveAt(1);
   runButton.textContent = running ? "Pausar" : "Executar";
   runButton.dataset.running = String(running);
 }
@@ -179,6 +182,31 @@ romInput.addEventListener("change", async () => {
   } catch (error) {
     stop(error.message, "error");
   }
+});
+
+microdriveInput.addEventListener("change", async () => {
+  const [file] = microdriveInput.files;
+  if (!file) return;
+
+  try {
+    zx8302.mountMicrodrive(1, new Uint8Array(await file.arrayBuffer()), { name: file.name });
+    resetMachine();
+    setStatus(
+      `${file.name} montado em MDV1, apenas para leitura. Prima F1 ou F2 para arrancar.`,
+      "ready",
+    );
+  } catch (error) {
+    setStatus(`Não foi possível montar o cartucho: ${error.message}`, "error");
+  } finally {
+    microdriveInput.value = "";
+    updateControls();
+  }
+});
+
+ejectMicrodriveButton.addEventListener("click", () => {
+  const image = zx8302.unmountMicrodrive(1);
+  updateControls();
+  setStatus(image ? `${image.name} ejetado de MDV1.` : "MDV1 já se encontra vazio.", "ready");
 });
 
 runButton.addEventListener("click", () => {
