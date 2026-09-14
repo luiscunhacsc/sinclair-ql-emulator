@@ -146,7 +146,7 @@ export class ZX8302 {
       return IDLE_IPC_STATUS | ipcBit;
     }
 
-    if (this.activeMicrodrive === 0) return IDLE_IPC_STATUS | ipcBit;
+    if (this.activeMicrodrive === 0) return ipcBit;
     if (!this.microdrives[this.activeMicrodrive - 1]) return ipcBit;
 
     if (this.microdrivePhase === "header-gap" || this.microdrivePhase === "record-gap") {
@@ -160,7 +160,7 @@ export class ZX8302 {
       }
       const status = this.microdriveGapPolls === 0 ? MICRODRIVE_GAP : 0;
       this.microdriveGapPolls += 1;
-      if (this.microdriveGapPolls >= MICRODRIVE_GAP_POLLS) {
+      if (this.microdriveGapPolls > MICRODRIVE_GAP_POLLS) {
         this.microdrivePhase = this.microdrivePhase === "header-gap" ? "header" : "record";
         this.microdriveGapPolls = 0;
         this.microdriveReadyPolls = 0;

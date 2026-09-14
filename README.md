@@ -40,15 +40,23 @@ apaga o carácter sob o cursor. A ROM é processada apenas no navegador.
 
 ### Carregar software
 
-O controlo **Microdrive 1** monta, apenas para leitura, uma imagem `.mdv` no
-formato QLAY de 174 930 bytes. A máquina reinicia quando o cartucho é montado;
-prima F1 ou F2 no ecrã inicial para o QL procurar `mdv1_boot`. **Ejetar MDV1**
-remove o cartucho sem alterar o ficheiro original. Todo o conteúdo permanece no
-navegador.
+O controlo **Software / Microdrive 1** aceita, apenas para leitura:
 
-O suporte direto aos contentores `.qlpak` e aos ZIPs com metadados QDOS será
-construído sobre este dispositivo. Esses formatos ainda não podem ser montados
-diretamente nesta versão.
+- imagens `.mdv` no formato QLAY de 174 930 bytes;
+- pacotes `.qlpak` do Q-emuLator;
+- arquivos `.zip`, incluindo o campo adicional que preserva o tipo e o espaço
+  de dados dos executáveis QDOS.
+
+QLPAK e ZIP são descomprimidos localmente e convertidos numa imagem Microdrive
+temporária. Nos pacotes configurados como `FLP1`, as referências do ficheiro
+`BOOT` são adaptadas para `MDV1`, sem alterar os restantes ficheiros. Pacotes
+que ultrapassem a capacidade de um cartucho são recusados claramente; formatos
+destinados a discos `WIN` e software que exija hardware ainda não emulado não
+são suportados por esta conversão.
+
+A máquina reinicia quando o suporte é montado; prima F1 ou F2 no ecrã inicial
+para o QL procurar `mdv1_boot`. **Ejetar MDV1** remove o cartucho sem alterar o
+ficheiro original. Todo o conteúdo permanece no navegador.
 
 ## Testes
 
@@ -76,7 +84,9 @@ canvas RGBA de 512 × 256. O ZX8302 fornece os registos, a comunicação IPC
 bit-serial, o teclado e a interrupção periódica necessários para a Minerva
 chegar ao ecrã interativo do SuperBASIC. O primeiro Microdrive aceita imagens
 QLAY `.mdv` apenas para leitura, incluindo seleção em cadeia, GAP, cabeçalhos e
-registos de setor através dos registos do ZX8302. O primeiro bloco do MC68008 já
+registos de setor através dos registos do ZX8302. Pacotes QLPAK e ZIP que caibam
+num cartucho são convertidos localmente para este formato, preservando os
+metadados QDOS conhecidos. O primeiro bloco do MC68008 já
 implementa reset, registos, pilhas de supervisor/utilizador, acesso alinhado, exceção de
 instrução ilegal, emulação das linhas A/F, trace, interrupções autovetorizadas,
 violação de privilégio e códigos de condição. Estão

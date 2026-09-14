@@ -37,7 +37,7 @@ function finishGap(bus) {
     bus.read8(ZX8302_REGISTERS.microdriveControl) & ZX8302_REGISTERS.microdriveGap,
     ZX8302_REGISTERS.microdriveGap,
   );
-  for (let poll = 1; poll < ZX8302_REGISTERS.microdriveGapPolls; poll += 1) {
+  for (let poll = 0; poll < ZX8302_REGISTERS.microdriveGapPolls; poll += 1) {
     assert.equal(bus.read8(ZX8302_REGISTERS.microdriveControl) & 0x0c, 0);
   }
   assert.equal(
@@ -202,6 +202,13 @@ test("seleciona Microdrives pela cadeia de controlo do ZX8302", () => {
     bus.write8(ZX8302_REGISTERS.microdriveControl, 0x00);
   }
   assert.equal(zx8302.activeMicrodrive, 0);
+});
+
+test("não anuncia um GAP fantasma no modo Microdrive sem motor ativo", () => {
+  const zx8302 = new ZX8302();
+  const bus = new QLBus({ devices: [zx8302] });
+  bus.write8(ZX8302_REGISTERS.transmitControl, ZX8302_REGISTERS.microdriveMode);
+  assert.equal(bus.read8(ZX8302_REGISTERS.microdriveControl), 0);
 });
 
 test("lê cabeçalho e dados de um setor .mdv no modo Microdrive", () => {

@@ -2,6 +2,7 @@ import { QLBus } from "./core/bus.js";
 import { MC68008 } from "./core/mc68008.js";
 import { ZX8301, ZX8301_DISPLAY } from "./devices/zx8301.js";
 import { ZX8302 } from "./devices/zx8302.js";
+import { importQlPackage } from "./formats/ql-package.js";
 import { qlKeyDefinition } from "./ui/ql-keyboard.js";
 import {
   adjacentPresentationMode,
@@ -189,10 +190,21 @@ microdriveInput.addEventListener("change", async () => {
   if (!file) return;
 
   try {
-    zx8302.mountMicrodrive(1, new Uint8Array(await file.arrayBuffer()), { name: file.name });
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const isMicrodrive = file.name.toLocaleLowerCase("en").endsWith(".mdv");
+    let imageBytes = bytes;
+    let packageSummary = "";
+    if (!isMicrodrive) {
+      const imported = await importQlPackage(bytes, { name: file.name });
+      imageBytes = imported.image;
+      packageSummary = ` ${imported.files.length} ficheiro(s) convertido(s)`
+        + (imported.bootReplacements ? "; BOOT adaptado para MDV1" : "")
+        + ".";
+    }
+    zx8302.mountMicrodrive(1, imageBytes, { name: file.name });
     resetMachine();
     setStatus(
-      `${file.name} montado em MDV1, apenas para leitura. Prima F1 ou F2 para arrancar.`,
+      `${file.name} montado em MDV1, apenas para leitura.${packageSummary} Prima F1 ou F2 para arrancar.`,
       "ready",
     );
   } catch (error) {
