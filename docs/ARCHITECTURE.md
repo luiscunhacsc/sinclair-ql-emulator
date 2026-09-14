@@ -82,8 +82,26 @@ imagem foi também confrontada com o formato publicado pelo
 A escrita no mesmo endereço reproduz a seleção em cadeia de até oito unidades.
 O primeiro marco monta `mdv1_` apenas para leitura e conserva o cartucho durante
 RESET. A imagem é copiada ao montar, pelo que o ficheiro escolhido pelo utilizador
-nunca é modificado. Escrita, persistência, conversão de ZIP/QLPAK e fidelidade de
-temporização ao nível das duas pistas ficam para os marcos seguintes.
+nunca é modificado. Escrita, persistência e fidelidade de temporização ao nível
+das duas pistas ficam para os marcos seguintes.
+
+### Importação QLPAK/ZIP
+
+`src/formats/zip.js` lê o subconjunto seguro do ZIP clássico utilizado pelos
+arquivos QDOS: entradas armazenadas ou Deflate, sem encriptação, volumes
+múltiplos ou ZIP64. Os tamanhos e CRC-32 são verificados antes da conversão e
+existem limites contra arquivos de descompressão excessiva.
+
+`src/formats/ql-package.js` reconhece a configuração `.QCF`, a pasta `PakDir1`,
+o cabeçalho inline `]!QDOS File Header` e o campo ZIP QDOS `0xFB4A`. Os
+metadados são transformados em cabeçalhos de diretório QDOS de 64 bytes. Quando
+o pacote usa o nome de dispositivo `FLP`, apenas o ficheiro `BOOT` é adaptado de
+`flp1_` para `mdv1_`.
+
+`src/formats/microdrive-builder.js` constrói em memória o diretório, mapa de
+alocação, blocos de 512 bytes, preâmbulos e somas de verificação de uma imagem
+QLAY. A conversão fica limitada à capacidade real do cartucho; pacotes maiores
+necessitarão futuramente de um dispositivo de disco ou `WIN`.
 
 ## Marcos
 

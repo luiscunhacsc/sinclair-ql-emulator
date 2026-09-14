@@ -89,8 +89,12 @@
           <input id="rom-file" type="file" accept=".rom,.bin,application/octet-stream">
         </label>
         <label class="file-control">
-          <span>Microdrive 1</span>
-          <input id="mdv-file" type="file" accept=".mdv,application/octet-stream">
+          <span>Software / Microdrive 1</span>
+          <input
+            id="mdv-file"
+            type="file"
+            accept=".mdv,.qlpak,.zip,application/zip,application/x-qdos-qlpak,application/octet-stream"
+          >
         </label>
         <button id="eject-mdv" type="button" disabled>Ejetar MDV1</button>
       </section>
@@ -100,7 +104,7 @@
       </p>
       <p class="keyboard-hint">
         Clique no ecrã para usar o teclado. Backspace (Ctrl+← no QL) apaga à esquerda;
-        Ctrl+→ apaga sob o cursor. Os cartuchos .mdv são montados apenas para leitura.
+        Ctrl+→ apaga sob o cursor. MDV, QLPAK e ZIP são montados apenas para leitura.
       </p>
     </main>
     <script type="module" src="./src/main.js"></script>
