@@ -40,6 +40,12 @@ apaga o carácter sob o cursor. O botão **Som ligado/desligado** controla o
 altifalante emulado; o áudio só é ativado após uma interação com a página. A ROM
 é processada apenas no navegador.
 
+Os modos **Ecrã**, **Monitor** e **QL completo** ajustam a apresentação à janela
+sem deformar as proporções. No modo QL completo, a composição mostra
+automaticamente os cartuchos realmente montados em `MDV1` e `MDV2`: nenhum,
+apenas o da esquerda, apenas o da direita ou ambos. A imagem regressa ao estado
+correspondente assim que um cartucho é ejetado.
+
 ### Carregar software
 
 A **Biblioteca de software** permite escolher uma pasta, adicionar vários
