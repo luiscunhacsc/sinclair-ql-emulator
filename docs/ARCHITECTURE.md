@@ -66,7 +66,7 @@ ativa, reconhecer a fonte volta a solicitá-la. Este comportamento permite ao
 servidor de Microdrive da Minerva detetar a ausência de meio e terminar a
 pesquisa por `boot`/`mdv1_boot`.
 
-### Microdrive só de leitura
+### Microdrive: leitura e escrita
 
 `src/devices/microdrive.js` valida e encapsula imagens QLAY `.mdv`. Cada imagem
 tem 255 setores de 686 bytes: preâmbulo e cabeçalho, preâmbulo e registo QDOS,
@@ -79,11 +79,22 @@ imagem foi também confrontada com o formato publicado pelo
 [QLAY2](https://github.com/xXorAa/qlay2) e pelo projeto MIT
 [MicroPicoDrive](https://github.com/gusmanb/micropicodrive).
 
-A escrita no mesmo endereço reproduz a seleção em cadeia de até oito unidades.
-O primeiro marco monta `mdv1_` apenas para leitura e conserva o cartucho durante
-RESET. A imagem é copiada ao montar, pelo que o ficheiro escolhido pelo utilizador
-nunca é modificado. Escrita, persistência e fidelidade de temporização ao nível
-das duas pistas ficam para os marcos seguintes.
+A escrita nos mesmos endereços reproduz `pc.erase` e `pc.write`, os preâmbulos,
+os cabeçalhos e os registos físicos emitidos pela ROM. Cartuchos virgens usam
+um percurso de 254 setores com uma pequena emenda interna não gravável: isto
+permite à rotina `FORMAT` detetar a descontinuidade que espera numa fita real,
+em vez de rejeitar um percurso artificialmente perfeito. Um teste de integração
+arranca a Minerva, executa `FORMAT mdv1_test`, cria um programa com
+`SAVE mdv1_demo` e volta a lê-lo com `LOAD` a partir da imagem exportada.
+
+A seleção em cadeia suporta até oito unidades.
+A biblioteca em `src/main.js` permite montar e ejetar cada unidade entre
+`mdv1_` e `mdv8_`; os cartuchos são conservados durante RESET. A imagem é
+copiada ao montar, pelo que o ficheiro escolhido pelo utilizador nunca é
+modificado. Imagens importadas são protegidas contra escrita. Cartuchos virgens
+ficam graváveis em memória, assinalam alterações pendentes e podem ser
+descarregados como uma nova imagem `.mdv`; a persistência contínua e a fidelidade
+de temporização ao nível das duas pistas ficam para marcos seguintes.
 
 ### Importação QLPAK/ZIP
 
@@ -96,7 +107,14 @@ existem limites contra arquivos de descompressão excessiva.
 o cabeçalho inline `]!QDOS File Header` e o campo ZIP QDOS `0xFB4A`. Os
 metadados são transformados em cabeçalhos de diretório QDOS de 64 bytes. Quando
 o pacote usa o nome de dispositivo `FLP`, apenas o ficheiro `BOOT` é adaptado de
-`flp1_` para `mdv1_`.
+`flp1_` para a unidade `mdv1_`–`mdv8_` escolhida.
+
+`src/ui/software-library.js` concentra a identificação, ordenação e apresentação
+dos ficheiros suportados. A interface mantém apenas referências aos objetos
+`File` selecionados pelo utilizador e só lê os respetivos bytes no momento da
+montagem. Escolher outra pasta substitui a lista; adicionar ficheiros ou
+arrastá-los para o painel combina-os sem duplicar o mesmo caminho, tamanho e
+data de alteração.
 
 `src/formats/microdrive-builder.js` constrói em memória o diretório, mapa de
 alocação, blocos de 512 bytes, preâmbulos e somas de verificação de uma imagem

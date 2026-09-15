@@ -88,23 +88,86 @@
           <span>Outra ROM</span>
           <input id="rom-file" type="file" accept=".rom,.bin,application/octet-stream">
         </label>
-        <label class="file-control">
-          <span>Software / Microdrive 1</span>
-          <input
-            id="mdv-file"
-            type="file"
-            accept=".mdv,.qlpak,.zip,application/zip,application/x-qdos-qlpak,application/octet-stream"
-          >
-        </label>
-        <button id="eject-mdv" type="button" disabled>Ejetar MDV1</button>
+        <button
+          id="open-software-library"
+          type="button"
+          aria-haspopup="dialog"
+          aria-controls="software-library"
+        >Biblioteca de software</button>
       </section>
+
+      <dialog id="software-library" class="software-library" aria-labelledby="software-library-title">
+        <div class="software-library-header">
+          <div>
+            <span class="eyebrow">SOFTWARE</span>
+            <h2 id="software-library-title">Biblioteca e Microdrives</h2>
+          </div>
+          <form method="dialog">
+            <button class="dialog-close" type="submit" aria-label="Fechar a biblioteca">Fechar</button>
+          </form>
+        </div>
+
+        <div class="software-source-actions">
+          <button id="new-virgin-microdrive" class="virgin-button" type="button">
+            Novo cartucho virgem
+          </button>
+          <label class="software-picker-button">
+            Adicionar ficheiros
+            <input
+              id="software-files"
+              class="software-picker"
+              type="file"
+              multiple
+              accept=".mdv,.qlpak,.zip,application/zip,application/x-qdos-qlpak,application/octet-stream"
+            >
+          </label>
+          <label class="software-picker-button">
+            Abrir pasta
+            <input
+              id="software-folder"
+              class="software-picker"
+              type="file"
+              multiple
+              webkitdirectory
+              accept=".mdv,.qlpak,.zip,application/zip,application/x-qdos-qlpak,application/octet-stream"
+            >
+          </label>
+          <p>Os ficheiros permanecem neste navegador e nunca são modificados.</p>
+        </div>
+
+        <div class="software-library-layout">
+          <section class="software-browser" aria-labelledby="software-files-title">
+            <div class="software-section-heading">
+              <h3 id="software-files-title">Ficheiros</h3>
+              <span id="software-count" class="software-count">0</span>
+            </div>
+            <div id="software-dropzone" class="software-dropzone">
+              <div id="software-file-list" class="software-file-list" role="listbox" aria-label="Software disponível">
+                <p class="software-empty">Escolha uma pasta ou adicione ficheiros MDV, QLPAK ou ZIP.</p>
+              </div>
+            </div>
+          </section>
+
+          <section class="microdrive-panel" aria-labelledby="microdrives-title">
+            <div class="software-section-heading">
+              <h3 id="microdrives-title">Microdrives</h3>
+              <span class="microdrive-capability-badge">leitura e escrita</span>
+            </div>
+            <div id="microdrive-rack" class="microdrive-rack"></div>
+          </section>
+        </div>
+
+        <p id="software-library-status" class="software-library-status" role="status" aria-live="polite">
+          Selecione um ficheiro e escolha a unidade onde o pretende montar.
+        </p>
+      </dialog>
 
       <p id="status" role="status" aria-live="polite">
         A iniciar a Minerva 1.98a1 incluída no projeto…
       </p>
       <p class="keyboard-hint">
         Clique no ecrã para usar o teclado. Backspace (Ctrl+← no QL) apaga à esquerda;
-        Ctrl+→ apaga sob o cursor. MDV, QLPAK e ZIP são montados apenas para leitura.
+        Ctrl+→ apaga sob o cursor. Ficheiros existentes são protegidos; novos cartuchos são graváveis.
       </p>
     </main>
     <script type="module" src="./src/main.js"></script>

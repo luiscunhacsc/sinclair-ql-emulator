@@ -7,7 +7,7 @@ const RECORD_SIZE = 612;
 const IMAGE_SIZE = SECTOR_COUNT * SECTOR_SIZE;
 
 /**
- * Immutable, read-only view of a QLAY-compatible Microdrive image.
+ * QLAY-compatible Microdrive image with optional write support.
  *
  * Each of the 255 sectors contains a 12-byte header preamble, a 16-byte
  * sector header, a 12-byte data preamble, a 612-byte QDOS record and 34
@@ -16,27 +16,70 @@ const IMAGE_SIZE = SECTOR_COUNT * SECTOR_SIZE;
 export class MicrodriveImage {
   #bytes;
 
-  constructor(bytes, { name = "cartucho.mdv" } = {}) {
+  constructor(
+    bytes,
+    {
+      name = "cartucho.mdv",
+      writeProtected = true,
+      physicalSectorCount = SECTOR_COUNT,
+      spliceSector = null,
+    } = {},
+  ) {
     if (!(bytes instanceof Uint8Array)) {
       throw new TypeError("A imagem de Microdrive deve ser fornecida como Uint8Array.");
     }
     if (bytes.byteLength !== IMAGE_SIZE) {
       throw new RangeError(`Uma imagem .mdv deve ter exatamente ${IMAGE_SIZE} bytes.`);
     }
+    if (
+      !Number.isInteger(physicalSectorCount)
+      || physicalSectorCount < 1
+      || physicalSectorCount > SECTOR_COUNT
+    ) {
+      throw new RangeError(`O percurso físico deve conter entre 1 e ${SECTOR_COUNT} setores.`);
+    }
+    if (
+      spliceSector !== null
+      && (!Number.isInteger(spliceSector) || spliceSector < 0 || spliceSector >= physicalSectorCount)
+    ) {
+      throw new RangeError("A emenda deve ficar dentro do percurso físico do cartucho.");
+    }
 
     this.#bytes = bytes.slice();
     this.name = String(name);
+    this.writeProtected = Boolean(writeProtected);
+    this.physicalSectorCount = physicalSectorCount;
+    this.spliceSector = spliceSector;
+    this.dirty = false;
   }
 
   readHeaderByte(sector, offset) {
     this.validatePosition(sector, offset, HEADER_SIZE, "cabeçalho");
+    if (sector === this.spliceSector) return 0;
     return this.#bytes[sector * SECTOR_SIZE + HEADER_PREAMBLE_SIZE + offset];
   }
 
   readRecordByte(sector, offset) {
     this.validatePosition(sector, offset, RECORD_SIZE, "registo");
+    if (sector === this.spliceSector) return 0;
     const recordStart = HEADER_PREAMBLE_SIZE + HEADER_SIZE + DATA_PREAMBLE_SIZE;
     return this.#bytes[sector * SECTOR_SIZE + recordStart + offset];
+  }
+
+  writePhysicalByte(sector, offset, value) {
+    this.validatePosition(sector, offset, SECTOR_SIZE, "setor");
+    if (this.writeProtected) return false;
+    if (sector !== this.spliceSector) this.#bytes[sector * SECTOR_SIZE + offset] = value & 0xff;
+    this.dirty = true;
+    return true;
+  }
+
+  toUint8Array() {
+    return this.#bytes.slice();
+  }
+
+  markClean() {
+    this.dirty = false;
   }
 
   validatePosition(sector, offset, length, region) {

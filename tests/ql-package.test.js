@@ -196,6 +196,17 @@ test("converte QLPAK em MDV, remove o cabeçalho inline e adapta FLP1 no BOOT", 
   assert.deepEqual(imported.files[1].bytes, program);
   assert.equal(imported.files[1].type, 1);
   assert.equal(imported.files[1].dataSpace, 0x2345);
+
+  const mountedOnThree = await importQlPackage(zip, { name: "Demo.qlpak", microdrive: 3 });
+  assert.equal(
+    new TextDecoder().decode(mountedOnThree.files[0].bytes),
+    "100 EXEC_W mdv3_prog_bin\n",
+  );
+});
+
+test("recusa uma unidade de destino inexistente", async () => {
+  const zip = makeZip([{ name: "boot", content: "100 PRINT 42\n" }]);
+  await assert.rejects(() => importQlPackage(zip, { microdrive: 9 }), /MDV1.*MDV8/u);
 });
 
 test("preserva metadados do campo adicional QDOS dos ZIPs", async () => {

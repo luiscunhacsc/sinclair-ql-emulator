@@ -40,7 +40,13 @@ apaga o carácter sob o cursor. A ROM é processada apenas no navegador.
 
 ### Carregar software
 
-O controlo **Software / Microdrive 1** aceita, apenas para leitura:
+A **Biblioteca de software** permite escolher uma pasta, adicionar vários
+ficheiros ou arrastá-los para o painel. Mostra apenas os formatos suportados e
+permite montar ou substituir cada ficheiro em qualquer unidade entre `MDV1` e
+`MDV8`. Cada unidade apresenta o cartucho atualmente inserido e permite
+ejetá-lo individualmente.
+
+A biblioteca aceita como cartuchos protegidos contra escrita:
 
 - imagens `.mdv` no formato QLAY de 174 930 bytes;
 - pacotes `.qlpak` do Q-emuLator;
@@ -49,14 +55,33 @@ O controlo **Software / Microdrive 1** aceita, apenas para leitura:
 
 QLPAK e ZIP são descomprimidos localmente e convertidos numa imagem Microdrive
 temporária. Nos pacotes configurados como `FLP1`, as referências do ficheiro
-`BOOT` são adaptadas para `MDV1`, sem alterar os restantes ficheiros. Pacotes
+`BOOT` são adaptadas para a unidade escolhida, sem alterar os restantes
+ficheiros. Pacotes
 que ultrapassem a capacidade de um cartucho são recusados claramente; formatos
 destinados a discos `WIN` e software que exija hardware ainda não emulado não
 são suportados por esta conversão.
 
-A máquina reinicia quando o suporte é montado; prima F1 ou F2 no ecrã inicial
-para o QL procurar `mdv1_boot`. **Ejetar MDV1** remove o cartucho sem alterar o
-ficheiro original. Todo o conteúdo permanece no navegador.
+**Novo cartucho virgem** cria um meio gravável. Depois de o montar, o próprio
+SuperBASIC pode inicializá-lo e usá-lo com os comandos habituais, por exemplo:
+
+```basic
+FORMAT mdv1_trabalho
+SAVE mdv1_programa
+DIR mdv1_
+LOAD mdv1_programa
+```
+
+O emulador reproduz uma pequena emenda física para que a rotina `FORMAT` da
+Minerva possa medir e validar o cartucho como faria com fita real. As alterações
+ficam apenas em memória até escolher **Guardar .mdv** na unidade. Substituir ou
+ejetar um cartucho alterado pede confirmação, e fechar a página também apresenta
+o aviso normal do navegador.
+
+Em `MDV1`, **Montar e arrancar** reinicia a máquina, envia F1 e inicia a
+execução para procurar `mdv1_boot`. A ação **Montar** não reinicia o QL, o que
+permite preparar várias unidades antes do arranque. Todo o conteúdo permanece
+no navegador; as pastas e os ficheiros escolhidos nunca são enviados nem
+modificados.
 
 ## Testes
 
@@ -82,9 +107,11 @@ ROM/RAM, carregamento automático da Minerva e o primeiro bloco de vídeo do
 ZX8301: `MC_STAT`, blanking, MODE 4/8, dois bancos de ecrã e conversão para um
 canvas RGBA de 512 × 256. O ZX8302 fornece os registos, a comunicação IPC
 bit-serial, o teclado e a interrupção periódica necessários para a Minerva
-chegar ao ecrã interativo do SuperBASIC. O primeiro Microdrive aceita imagens
-QLAY `.mdv` apenas para leitura, incluindo seleção em cadeia, GAP, cabeçalhos e
-registos de setor através dos registos do ZX8302. Pacotes QLPAK e ZIP que caibam
+chegar ao ecrã interativo do SuperBASIC. As oito unidades de Microdrive aceitam imagens
+QLAY `.mdv`, incluindo seleção em cadeia, GAP, cabeçalhos, registos e escrita
+física através dos registos do ZX8302. Imagens e pacotes importados ficam
+protegidos; cartuchos virgens podem ser formatados e gravados pelo SuperBASIC e
+exportados como `.mdv`. Pacotes QLPAK e ZIP que caibam
 num cartucho são convertidos localmente para este formato, preservando os
 metadados QDOS conhecidos. O primeiro bloco do MC68008 já
 implementa reset, registos, pilhas de supervisor/utilizador, acesso alinhado, exceção de
