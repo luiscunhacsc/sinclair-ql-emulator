@@ -86,7 +86,7 @@ function addPackedBcd(source, destination, extend) {
   const binary = destination + source + extend;
   let adjusted = binary;
   if ((destination & 0x0f) + (source & 0x0f) + extend > 9) adjusted += 0x06;
-  const carry = adjusted > 0x99;
+  const carry = binary > 0x99;
   if (carry) adjusted += 0x60;
   return { result: adjusted & 0xff, carry };
 }
@@ -991,7 +991,7 @@ export class MC68008 {
     const operation = (opcode >>> 6) & 0x03;
     const mode = (opcode >>> 3) & 0x07;
     const register = opcode & 0x07;
-    if (mode === 1 || (mode === 7 && register >= (operation === 0 ? 4 : 2))) {
+    if (mode === 1 || (mode === 7 && register > (operation === 0 ? 4 : 1))) {
       throw new IllegalEffectiveAddress();
     }
 

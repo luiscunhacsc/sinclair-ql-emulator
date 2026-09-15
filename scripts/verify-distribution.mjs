@@ -10,6 +10,15 @@ const files = {
   ),
   copyright: new URL("../third_party/minerva/COPYRIGHT", import.meta.url),
   license: new URL("../LICENSE", import.meta.url),
+  singleStepFixture: new URL("../tests/fixtures/m68000-v1.json", import.meta.url),
+  singleStepLicense: new URL(
+    "../third_party/m68000-single-step/LICENSE",
+    import.meta.url,
+  ),
+  singleStepSource: new URL(
+    "../third_party/m68000-single-step/SOURCE.md",
+    import.meta.url,
+  ),
 };
 
 const expected = {
@@ -96,4 +105,25 @@ if (!license.includes("GNU GENERAL PUBLIC LICENSE") || !license.includes("Versio
   throw new Error("O ficheiro LICENSE não contém a GNU GPL versão 2.");
 }
 
-console.log("Distribuição verificada: ROM Minerva, fontes correspondentes e avisos GPL.");
+const singleStepFixture = JSON.parse(await readFile(files.singleStepFixture, "utf8"));
+if (
+  singleStepFixture.commit !== "64b253116a3de04aaac4346c43680960dc9b67e5" ||
+  singleStepFixture.tests?.length !== 56
+) {
+  throw new Error("A amostra SingleStepTests não corresponde à versão fixada.");
+}
+const singleStepLicense = await readFile(files.singleStepLicense, "utf8");
+if (
+  !singleStepLicense.includes("MIT License") ||
+  !singleStepLicense.includes("Copyright (c) 2024 SingleStepTests")
+) {
+  throw new Error("A licença da amostra SingleStepTests está incompleta.");
+}
+const singleStepSource = await readFile(files.singleStepSource, "utf8");
+if (!singleStepSource.includes(singleStepFixture.commit)) {
+  throw new Error("A proveniência da amostra SingleStepTests está incompleta.");
+}
+
+console.log(
+  "Distribuição verificada: Minerva GPL e amostra SingleStepTests MIT.",
+);

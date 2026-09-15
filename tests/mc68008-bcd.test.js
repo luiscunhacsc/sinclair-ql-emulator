@@ -45,6 +45,15 @@ test("ABCD inclui X, gera carry decimal e conserva Z cumulativo", () => {
   assert.equal(cpu.sr & (M68K_SR.CARRY | M68K_SR.EXTEND), M68K_SR.CARRY | M68K_SR.EXTEND);
 });
 
+test("ABCD aplica a correção inferior sem inventar carry em dígitos inválidos", () => {
+  const { cpu } = createCpu([0xc3, 0x00]); // ABCD D0,D1
+  cpu.d[0] = 0x0d;
+  cpu.d[1] = 0x87;
+  cpu.step();
+  assert.equal(cpu.d[1], 0x9a);
+  assert.equal(cpu.sr & (M68K_SR.CARRY | M68K_SR.EXTEND), 0);
+});
+
 test("ABCD limpa Z num resultado não nulo e não volta a defini-lo", () => {
   const { cpu } = createCpu([0xc1, 0x01, 0xc5, 0x03]); // ABCD D1,D0; ABCD D3,D2
   cpu.d[0] = 1;

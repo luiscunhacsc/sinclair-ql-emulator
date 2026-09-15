@@ -64,6 +64,14 @@ test("BTST e BCHG usam módulo 32 nos registos", () => {
   assert.equal(cpu.sr & M68K_SR.ZERO, 0);
 });
 
+test("BTST dinâmico aceita um operando imediato", () => {
+  const { cpu } = createCpu([0x03, 0x3c, 0x00, 0x02]); // BTST D1,#$02
+  cpu.d[1] = 1;
+  cpu.step();
+  assert.equal(cpu.sr & M68K_SR.ZERO, 0);
+  assert.equal(cpu.pc, RAM + 4);
+});
+
 test("BCLR imediato testa antes de limpar o bit", () => {
   const { cpu } = createCpu([0x08, 0x80, 0x00, 0x1f]); // BCLR #31,D0
   cpu.d[0] = 0x8000_0000;
