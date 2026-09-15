@@ -163,6 +163,45 @@ test("comandos IPC com parâmetros conservam o alinhamento do fluxo de bits", ()
   assert.equal(readValue(bus, 8), 0);
 });
 
+test("inicia, reporta, termina e interrompe o som do IPC", () => {
+  const events = [];
+  const zx8302 = new ZX8302({ onSound: (event) => events.push(event) });
+  const bus = new QLBus({ devices: [zx8302] });
+  const parameters = [21, 81, 0x02, 0x00, 0x03, 0x00, 0x23, 0x9a];
+
+  command(bus, 10);
+  for (const parameter of parameters) transferValue(bus, parameter, 8);
+  assert.equal(zx8302.soundActive, true);
+  assert.deepEqual(zx8302.sound, {
+    pitch: 21,
+    pitch2: 81,
+    interval: 2,
+    duration: 3,
+    step: 2,
+    wrap: 3,
+    randomness: 9,
+    fuzziness: 10,
+  });
+  assert.deepEqual(events, [{ type: "start", sound: zx8302.sound }]);
+
+  command(bus, 1);
+  assert.equal(readValue(bus, 8), 0x02);
+  bus.tick(zx8302.soundCyclesRemaining);
+  assert.equal(zx8302.soundActive, false);
+  assert.equal(events.at(-1).reason, "duration");
+
+  command(bus, 10);
+  for (const parameter of [21, 21, 0, 0, 0, 0, 0, 0]) transferValue(bus, parameter, 8);
+  assert.equal(zx8302.soundCyclesRemaining, Number.POSITIVE_INFINITY);
+  command(bus, 11);
+  assert.equal(zx8302.soundActive, false);
+  assert.equal(events.at(-1).reason, "command");
+
+  command(bus, 15);
+  transferValue(bus, 0xa5, 8);
+  assert.equal(readValue(bus, 8), 0xa5);
+});
+
 test("a fila do teclado valida keyrows e é limpa pelo RESET", () => {
   const zx8302 = new ZX8302();
   assert.throws(() => zx8302.enqueueKey(-1), RangeError);

@@ -4,6 +4,7 @@ import { ZX8301, ZX8301_DISPLAY } from "./devices/zx8301.js";
 import { ZX8302 } from "./devices/zx8302.js";
 import { MICRODRIVE_FORMAT } from "./devices/microdrive.js";
 import { importQlPackage } from "./formats/ql-package.js";
+import { QLAudio } from "./ui/ql-audio.js";
 import { qlKeyDefinition } from "./ui/ql-keyboard.js";
 import {
   adjacentPresentationMode,
@@ -22,9 +23,12 @@ import {
 const DEFAULT_ROM = "./roms/minerva/minerva-1.98a1.bin";
 const CPU_HZ = 7_500_000;
 const MAX_FRAME_CYCLES = CPU_HZ / 20;
+const PRESENTATION_STORAGE_KEY = "sinclair-ql-presentation";
+const SOUND_STORAGE_KEY = "sinclair-ql-sound";
 
 const zx8301 = new ZX8301();
-const zx8302 = new ZX8302();
+const qlAudio = new QLAudio({ onStateChange: updateSoundControl });
+const zx8302 = new ZX8302({ onSound: (event) => qlAudio.handleIpcEvent(event) });
 const bus = new QLBus({ devices: [zx8301, zx8302] });
 const cpu = new MC68008(bus);
 const romInput = document.querySelector("#rom-file");
@@ -42,6 +46,7 @@ const status = document.querySelector("#status");
 const runButton = document.querySelector("#run");
 const stepButton = document.querySelector("#step");
 const resetButton = document.querySelector("#reset");
+const soundButton = document.querySelector("#sound-toggle");
 const fullscreenButton = document.querySelector("#fullscreen");
 const computerStage = document.querySelector(".computer-stage");
 const presentationButtons = [...document.querySelectorAll("[data-presentation-option]")];
@@ -60,8 +65,6 @@ let virginMicrodriveCount = 0;
 
 const softwareFiles = new Map();
 
-const PRESENTATION_STORAGE_KEY = "sinclair-ql-presentation";
-
 function hexadecimal(value, width = 8) {
   return `0x${value.toString(16).padStart(width, "0")}`;
 }
@@ -79,6 +82,32 @@ function updateControls() {
   runButton.textContent = running ? "Pausar" : "Executar";
   runButton.dataset.running = String(running);
   renderMicrodriveRack();
+}
+
+function initialSoundEnabled() {
+  try {
+    return localStorage.getItem(SOUND_STORAGE_KEY) !== "off";
+  } catch {
+    return true;
+  }
+}
+
+function storeSoundEnabled(enabled) {
+  try {
+    localStorage.setItem(SOUND_STORAGE_KEY, enabled ? "on" : "off");
+  } catch {
+    // Storage can be unavailable in private or embedded browsing contexts.
+  }
+}
+
+function updateSoundControl() {
+  if (!soundButton) return;
+  const enabled = qlAudio.enabled && qlAudio.supported;
+  soundButton.disabled = !qlAudio.supported;
+  soundButton.setAttribute("aria-pressed", String(enabled));
+  soundButton.querySelector(".sound-label").textContent = qlAudio.supported
+    ? `Som ${enabled ? "ligado" : "desligado"}`
+    : "Som indisponível";
 }
 
 function setSoftwareLibraryStatus(message, kind = "info") {
@@ -279,6 +308,7 @@ function render(time = performance.now()) {
 
 function stop(message, kind = "ready") {
   running = false;
+  qlAudio.pause();
   if (animationFrameId !== null) cancelAnimationFrame(animationFrameId);
   animationFrameId = null;
   updateControls();
@@ -287,6 +317,7 @@ function stop(message, kind = "ready") {
 
 function startExecution(message = cpuStatus("Em execução")) {
   if (!bus.romLoaded) return;
+  void qlAudio.resume();
   running = true;
   lastFrameTime = performance.now();
   updateControls();
@@ -515,6 +546,13 @@ runButton.addEventListener("click", () => {
   startExecution();
 });
 
+soundButton.addEventListener("click", () => {
+  const enabled = !qlAudio.enabled;
+  qlAudio.setEnabled(enabled, zx8302.soundActive ? zx8302.sound : null);
+  storeSoundEnabled(enabled);
+  if (enabled && running) void qlAudio.resume();
+});
+
 stepButton.addEventListener("click", () => {
   try {
     const cycles = cpu.step();
@@ -531,13 +569,17 @@ stepButton.addEventListener("click", () => {
 resetButton.addEventListener("click", resetMachine);
 
 canvas.addEventListener("keydown", (event) => {
+  if (running) void qlAudio.resume();
   const key = qlKeyDefinition(event);
   if (!key) return;
   zx8302.enqueueKey(key.keyrow, key);
   event.preventDefault();
 });
 
-document.querySelector(".screen-panel").addEventListener("click", () => canvas.focus());
+document.querySelector(".screen-panel").addEventListener("click", () => {
+  if (running) void qlAudio.resume();
+  canvas.focus();
+});
 
 for (const button of presentationButtons) {
   button.addEventListener("click", () => {
@@ -577,6 +619,7 @@ if (typeof computerStage.requestFullscreen !== "function") {
 }
 
 setPresentationMode(initialPresentationMode(), { persist: false });
+qlAudio.setEnabled(initialSoundEnabled());
 updateFullscreenControl();
 updateControls();
 render();

@@ -36,7 +36,9 @@ pausar, avançar uma instrução ou reiniciar a máquina; o seletor **Outra ROM*
 continua disponível para testes locais. Clique no ecrã para enviar o teclado do
 navegador ao QL. Para facilitar a utilização com teclados modernos, Backspace é
 traduzido automaticamente no atalho Ctrl+seta esquerda do QL; Ctrl+seta direita
-apaga o carácter sob o cursor. A ROM é processada apenas no navegador.
+apaga o carácter sob o cursor. O botão **Som ligado/desligado** controla o
+altifalante emulado; o áudio só é ativado após uma interação com a página. A ROM
+é processada apenas no navegador.
 
 ### Carregar software
 
@@ -120,8 +122,9 @@ O projeto contém a estrutura do emulador, barramento de 20 bits, mapa inicial d
 ROM/RAM, carregamento automático da Minerva e o primeiro bloco de vídeo do
 ZX8301: `MC_STAT`, blanking, MODE 4/8, dois bancos de ecrã e conversão para um
 canvas RGBA de 512 × 256. O ZX8302 fornece os registos, a comunicação IPC
-bit-serial, o teclado e a interrupção periódica necessários para a Minerva
-chegar ao ecrã interativo do SuperBASIC. As oito unidades de Microdrive aceitam imagens
+bit-serial, o teclado, o som do IPC/8049 por Web Audio e a interrupção periódica
+necessários para a Minerva chegar ao ecrã interativo do SuperBASIC. As oito
+unidades de Microdrive aceitam imagens
 QLAY `.mdv`, incluindo seleção em cadeia, GAP, cabeçalhos, registos e escrita
 física através dos registos do ZX8302. Imagens e pacotes importados ficam
 protegidos; cartuchos virgens podem ser formatados e gravados pelo SuperBASIC e

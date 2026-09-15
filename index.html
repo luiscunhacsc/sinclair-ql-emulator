@@ -84,6 +84,16 @@
         <button id="run" type="button" disabled>Executar</button>
         <button id="step" type="button" disabled>Passo</button>
         <button id="reset" type="button" disabled>Reiniciar</button>
+        <button
+          id="sound-toggle"
+          class="sound-toggle"
+          type="button"
+          aria-pressed="true"
+          title="Ativar ou silenciar o altifalante do QL"
+        >
+          <span class="sound-indicator" aria-hidden="true"></span>
+          <span class="sound-label">Som ligado</span>
+        </button>
         <label class="file-control">
           <span>Outra ROM</span>
           <input id="rom-file" type="file" accept=".rom,.bin,application/octet-stream">
