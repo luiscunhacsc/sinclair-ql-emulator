@@ -134,11 +134,41 @@ necessitarão futuramente de um dispositivo de disco ou `WIN`.
 ## Validação do MC68008
 
 O conjunto de instruções é implementado a partir dos manuais Motorola. Além dos
-testes unitários pequenos e legíveis deste repositório, será usado o corpus
-`SingleStepTests/m68000`, que contém estados completos antes e depois de cada
-instrução. As diferenças de barramento entre MC68000 e MC68008 serão validadas
-separadamente: no QL cada transferência de byte ocupa inicialmente quatro
-clocks, e uma leitura de palavra exige duas transferências.
+testes unitários pequenos e legíveis deste repositório, o CI executa uma amostra
+fixada do corpus [`SingleStepTests/m68000`](https://github.com/SingleStepTests/m68000),
+que contém estados completos antes e depois de cada instrução. A amostra atual
+tem 56 casos de NOP, MOVEQ, ADD.B, ABCD, Bcc, CLR.W e BTST, escolhidos
+deterministicamente a partir do commit
+`64b253116a3de04aaac4346c43680960dc9b67e5`. A proveniência e a licença estão
+em [`third_party/m68000-single-step/`](../third_party/m68000-single-step/).
+
+`tools/m68000-single-step.mjs` lê diretamente o formato binário `.json.bin`,
+reconstrói a memória esparsa de 24 bits, adapta o PC de prefetch do corpus ao PC
+arquitetural do núcleo e compara registos, SR, PC, pilhas e todos os bytes de RAM
+observáveis. Assim, qualquer ficheiro ou conjunto de ficheiros do corpus pode
+ser executado localmente:
+
+```sh
+node scripts/run-m68000-conformance.mjs /caminho/m68000/v1/NOP.json.bin
+```
+
+O marco inicial exclui casos com o bit de trace ativo, pois o limite de uma
+operação no gerador não entra na exceção pós-instrução que `MC68008.step()`
+modela. Também exclui transações de erro de endereço (`re`/`we`), que dependem
+do estado interno da fila de prefetch do MC68000. O comparador valida por
+enquanto o estado arquitetural, não a lista de transações nem a duração. As
+diferenças de barramento entre MC68000 e MC68008 serão validadas separadamente.
+No QL cada transferência de byte ocupa inicialmente quatro clocks, e uma leitura
+de palavra exige duas transferências.
+
+A primeira execução alargada revelou duas divergências. Na correção decimal de
+`ABCD`, um ajuste do nibble inferior podia ser confundido com o carry decimal
+do byte completo quando os operandos não eram BCD válidos. Além disso, na
+descodificação de `BTST Dn,#imediato`, o modo efetivo imediato era rejeitado
+antes de a operação testar o bit. O núcleo aceita agora essa codificação, e oito
+vetores dedicados de cada grupo mantêm ambas as correções cobertas pelo CI. O
+comparador ignora apenas `N` e `V` nas operações BCD e `N` e `Z` no overflow de
+divisão, pois essas flags ficam indefinidas nesses casos.
 
 ### Modos já implementados
 

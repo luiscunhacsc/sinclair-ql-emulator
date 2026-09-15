@@ -20,3 +20,10 @@ o repetem individualmente. Foi preservado a partir do
 Este componente não altera a licença do código original do emulador. A relação
 completa entre binário, código-fonte e proveniência está documentada em
 [`third_party/minerva/SOURCE.md`](third_party/minerva/SOURCE.md).
+
+## SingleStepTests/m68000
+
+A amostra de vetores em `tests/fixtures/m68000-v1.json` deriva do corpus
+SingleStepTests/m68000, Copyright (c) 2024 SingleStepTests, disponibilizado sob
+a licença MIT. A licença integral e a proveniência da versão fixada encontram-se
+em [`third_party/m68000-single-step/`](third_party/m68000-single-step/).

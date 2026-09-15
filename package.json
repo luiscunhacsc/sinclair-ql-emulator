@@ -8,6 +8,7 @@
   "scripts": {
     "start": "node scripts/serve.mjs",
     "test": "npm run verify:distribution && node --test",
+    "test:conformance": "node scripts/run-m68000-conformance.mjs",
     "verify:distribution": "node scripts/verify-distribution.mjs"
   },
   "engines": {

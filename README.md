@@ -87,10 +87,24 @@ modificados.
 
 ```sh
 npm test
+npm run test:conformance
 ```
 
 O comando também confirma o tamanho e os hashes da ROM, do código-fonte
-correspondente e dos avisos exigidos pela licença.
+correspondente e dos avisos exigidos pela licença. O segundo comando executa a
+amostra determinística do corpus público `SingleStepTests/m68000`: 56 estados
+completos que cobrem NOP, MOVEQ, ADD.B, ABCD, Bcc, CLR.W e BTST, incluindo modos
+de endereçamento por registo, memória e imediato.
+
+Também é possível testar ficheiros binários originais, sem os converter para
+JSON:
+
+```sh
+node scripts/run-m68000-conformance.mjs /caminho/m68000/v1/NOP.json.bin
+```
+
+Consulte [a validação da CPU](docs/ARCHITECTURE.md#validação-do-mc68008) para
+obter a versão exata do corpus e conhecer as limitações atuais do comparador.
 
 ## Licença
 
@@ -124,4 +138,5 @@ AND, EOR, EXG, operações de bits, shifts e rotações, as variantes imediatas,
 BRA/Bcc, BSR, DBcc, Scc, JMP, JSR, PEA, LINK/UNLK, TRAP/TRAPV, RESET, STOP, RTS,
 RTR e RTE, bem como os principais modos de endereçamento do MC68000. A cobertura
 da CPU será aumentada incrementalmente e confrontada com os testes públicos
-SingleStepTests/m68000.
+SingleStepTests/m68000. Uma primeira amostra fixada de 56 casos já faz parte dos
+testes automáticos.
