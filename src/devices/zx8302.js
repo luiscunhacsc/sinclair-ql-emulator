@@ -68,9 +68,12 @@ export class ZX8302 {
     this.microdriveReadyPolls = 0;
     this.microdriveStreamRegion = null;
     this.microdriveDataOffset = 0;
+    this.microdrivePhysicalOffset = 0;
+    this.microdriveWriting = false;
     this.microdriveSector = 0;
     this.microdriveAdvanceSectorPending = false;
     this.microdriveDataReads = 0;
+    this.microdriveDataWrites = 0;
     this.microdriveGapCycleAccumulator = 0;
   }
 
@@ -110,12 +113,30 @@ export class ZX8302 {
       if ((this.interruptMask & GAP_INTERRUPT_MASK) && !this.microdrives.some(Boolean)) {
         this.pendingInterrupts |= GAP_INTERRUPT;
       }
+    } else if (address === MICRODRIVE_TRACK_1 || address === MICRODRIVE_TRACK_2) {
+      this.writeMicrodriveData(value);
     }
   }
 
-  mountMicrodrive(slot, bytes, { name = `mdv${slot}.mdv` } = {}) {
+  mountMicrodrive(
+    slot,
+    bytes,
+    {
+      name = `mdv${slot}.mdv`,
+      writeProtected = true,
+      physicalSectorCount = MICRODRIVE_FORMAT.sectorCount,
+      spliceSector = null,
+    } = {},
+  ) {
     this.validateMicrodriveSlot(slot);
-    const image = bytes instanceof MicrodriveImage ? bytes : new MicrodriveImage(bytes, { name });
+    const image = bytes instanceof MicrodriveImage
+      ? bytes
+      : new MicrodriveImage(bytes, {
+        name,
+        writeProtected,
+        physicalSectorCount,
+        spliceSector,
+      });
     this.microdrives[slot - 1] = image;
     if (this.activeMicrodrive === slot) this.resetMicrodriveStream();
     return image;
@@ -148,6 +169,7 @@ export class ZX8302 {
 
     if (this.activeMicrodrive === 0) return ipcBit;
     if (!this.microdrives[this.activeMicrodrive - 1]) return ipcBit;
+    if (this.microdriveWriting) return ipcBit;
 
     if (this.microdrivePhase === "header-gap" || this.microdrivePhase === "record-gap") {
       if (
@@ -155,7 +177,7 @@ export class ZX8302 {
         && this.microdriveGapPolls === 0
         && this.microdriveAdvanceSectorPending
       ) {
-        this.microdriveSector = (this.microdriveSector + 1) % MICRODRIVE_FORMAT.sectorCount;
+        this.advanceMicrodriveSector();
         this.microdriveAdvanceSectorPending = false;
       }
       const status = this.microdriveGapPolls === 0 ? MICRODRIVE_GAP : 0;
@@ -166,6 +188,11 @@ export class ZX8302 {
         this.microdriveReadyPolls = 0;
         this.microdriveStreamRegion = this.microdrivePhase;
         this.microdriveDataOffset = 0;
+        this.microdrivePhysicalOffset = this.microdrivePhase === "header"
+          ? MICRODRIVE_FORMAT.headerPreambleSize
+          : MICRODRIVE_FORMAT.headerPreambleSize
+            + MICRODRIVE_FORMAT.headerSize
+            + MICRODRIVE_FORMAT.dataPreambleSize;
       }
       return status | ipcBit;
     }
@@ -195,6 +222,7 @@ export class ZX8302 {
     ) {
       value = image.readHeaderByte(this.microdriveSector, this.microdriveDataOffset);
       this.microdriveDataOffset += 1;
+      this.microdrivePhysicalOffset += 1;
       this.microdriveDataReads += 1;
     } else if (
       this.microdriveStreamRegion === "record"
@@ -202,10 +230,26 @@ export class ZX8302 {
     ) {
       value = image.readRecordByte(this.microdriveSector, this.microdriveDataOffset);
       this.microdriveDataOffset += 1;
+      this.microdrivePhysicalOffset += 1;
       this.microdriveDataReads += 1;
     }
 
     return value;
+  }
+
+  writeMicrodriveData(value) {
+    if ((this.transmitControl & MODE_MASK) !== MICRODRIVE_MODE || !this.microdriveWriting) return;
+    const image = this.microdrives[this.activeMicrodrive - 1];
+    if (!image || this.microdrivePhysicalOffset >= MICRODRIVE_FORMAT.sectorSize) return;
+    const written = image.writePhysicalByte(this.microdriveSector, this.microdrivePhysicalOffset, value);
+    this.microdrivePhysicalOffset += 1;
+    if (written) this.microdriveDataWrites += 1;
+  }
+
+  advanceMicrodriveSector() {
+    const image = this.microdrives[this.activeMicrodrive - 1];
+    const sectorCount = image?.physicalSectorCount ?? MICRODRIVE_FORMAT.sectorCount;
+    this.microdriveSector = (this.microdriveSector + 1) % sectorCount;
   }
 
   writeMicrodriveControl(value) {
@@ -229,6 +273,20 @@ export class ZX8302 {
       // QDOS reads the four-byte block header, then asks the controller to
       // skip the eight-byte PLL preamble before the 512-byte payload.
       this.microdriveDataOffset += 8;
+      this.microdrivePhysicalOffset += 8;
+    }
+
+    if (control === 0x0a) {
+      this.microdriveWriting = false;
+      if (this.microdrivePhysicalOffset > 0x40) {
+        this.advanceMicrodriveSector();
+        this.microdrivePhysicalOffset = 0;
+        this.microdriveAdvanceSectorPending = false;
+      }
+    } else if (control === 0x0e) {
+      this.microdriveWriting = true;
+    } else if (control === 0x00 || control === 0x02) {
+      this.microdriveWriting = false;
     }
 
     this.microdriveControl = control;
@@ -245,6 +303,8 @@ export class ZX8302 {
     this.microdriveReadyPolls = 0;
     this.microdriveStreamRegion = null;
     this.microdriveDataOffset = 0;
+    this.microdrivePhysicalOffset = 0;
+    this.microdriveWriting = false;
     this.microdriveSector = 0;
     this.microdriveAdvanceSectorPending = false;
     this.microdriveGapCycleAccumulator = 0;

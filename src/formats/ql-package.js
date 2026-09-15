@@ -75,10 +75,12 @@ function qlName(path) {
   return path.replaceAll("/", "_").replaceAll(".", "_").slice(0, 36);
 }
 
-function rewriteBootDevice(bytes, sourceDevice) {
-  if (sourceDevice.length !== 3 || sourceDevice === "mdv") return { bytes, replacements: 0 };
+function rewriteBootDevice(bytes, sourceDevice, microdrive) {
+  if (sourceDevice.length !== 3 || (sourceDevice === "mdv" && microdrive === 1)) {
+    return { bytes, replacements: 0 };
+  }
   const from = new TextEncoder().encode(`${sourceDevice}1_`);
-  const to = new TextEncoder().encode("mdv1_");
+  const to = new TextEncoder().encode(`mdv${microdrive}_`);
   const rewritten = bytes.slice();
   let replacements = 0;
   for (let offset = 0; offset + from.byteLength <= bytes.byteLength; offset += 1) {
@@ -95,7 +97,10 @@ function rewriteBootDevice(bytes, sourceDevice) {
 }
 
 /** Convert a QL-aware ZIP or QLPAK into a read-only QLAY Microdrive image. */
-export async function importQlPackage(bytes, { name = "software.qlpak" } = {}) {
+export async function importQlPackage(bytes, { name = "software.qlpak", microdrive = 1 } = {}) {
+  if (!Number.isInteger(microdrive) || microdrive < 1 || microdrive > 8) {
+    throw new RangeError("A unidade de destino deve estar entre MDV1 e MDV8.");
+  }
   const entries = await readZipArchive(bytes);
   const config = parseConfig(entries);
   const configuredRoot = (config.pakdir1 ?? "").replaceAll("\\", "/").replace(/^\/+|\/+$/gu, "");
@@ -116,7 +121,7 @@ export async function importQlPackage(bytes, { name = "software.qlpak" } = {}) {
     let content = inline.bytes;
     const targetName = qlName(relative);
     if (targetName.toLocaleLowerCase("en") === "boot") {
-      const rewritten = rewriteBootDevice(content, sourceDevice);
+      const rewritten = rewriteBootDevice(content, sourceDevice, microdrive);
       content = rewritten.bytes;
       bootReplacements += rewritten.replacements;
     }

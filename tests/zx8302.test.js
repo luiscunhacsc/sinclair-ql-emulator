@@ -271,3 +271,43 @@ test("gera interrupções de gap periódicas enquanto um motor está ativo", () 
   );
   assert.equal(bus.read8(ZX8302_REGISTERS.interrupt), 0);
 });
+
+test("escreve sequências físicas num cartucho gravável e avança após um registo", () => {
+  const zx8302 = new ZX8302();
+  const image = zx8302.mountMicrodrive(
+    1,
+    new Uint8Array(MICRODRIVE_FORMAT.imageSize),
+    { name: "virgem.mdv", writeProtected: false },
+  );
+  const bus = new QLBus({ devices: [zx8302] });
+  bus.write8(ZX8302_REGISTERS.transmitControl, ZX8302_REGISTERS.microdriveMode);
+  selectMicrodrive(bus, 1);
+
+  bus.write8(ZX8302_REGISTERS.microdriveControl, 0x0a);
+  bus.write8(ZX8302_REGISTERS.microdriveControl, 0x0e);
+  bus.write8(ZX8302_REGISTERS.microdriveTrack1, 0x12);
+  bus.write8(ZX8302_REGISTERS.microdriveTrack2, 0x34);
+  assert.deepEqual([...image.toUint8Array().subarray(0, 2)], [0x12, 0x34]);
+  assert.equal(zx8302.microdriveSector, 0);
+
+  for (let index = 2; index < 652; index += 1) {
+    bus.write8(ZX8302_REGISTERS.microdriveTrack1, index);
+  }
+  bus.write8(ZX8302_REGISTERS.microdriveControl, 0x0a);
+  assert.equal(zx8302.microdriveSector, 1);
+  assert.equal(zx8302.microdrivePhysicalOffset, 0);
+  assert.equal(image.dirty, true);
+});
+
+test("ignora escritas físicas em imagens protegidas", () => {
+  const zx8302 = new ZX8302();
+  const image = zx8302.mountMicrodrive(1, new Uint8Array(MICRODRIVE_FORMAT.imageSize));
+  const bus = new QLBus({ devices: [zx8302] });
+  bus.write8(ZX8302_REGISTERS.transmitControl, ZX8302_REGISTERS.microdriveMode);
+  selectMicrodrive(bus, 1);
+  bus.write8(ZX8302_REGISTERS.microdriveControl, 0x0e);
+  bus.write8(ZX8302_REGISTERS.microdriveTrack1, 0xff);
+  assert.equal(image.toUint8Array()[0], 0);
+  assert.equal(image.dirty, false);
+  assert.equal(zx8302.microdrivePhysicalOffset, 1, "a fita continua a avançar fisicamente");
+});
