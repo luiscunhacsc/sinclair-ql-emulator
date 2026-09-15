@@ -6,6 +6,26 @@ import { MC68008 } from "../src/core/mc68008.js";
 import { MICRODRIVE_FORMAT } from "../src/devices/microdrive.js";
 import { ZX8301 } from "../src/devices/zx8301.js";
 import { ZX8302 } from "../src/devices/zx8302.js";
+import { QL_KEYBOARD } from "../src/ui/ql-keyboard.js";
+
+function enqueueText(zx8302, text) {
+  for (const character of text) {
+    let code;
+    if (/^[a-z]$/u.test(character)) code = `Key${character.toUpperCase()}`;
+    else if (/^[0-9]$/u.test(character)) code = `Digit${character}`;
+    else if (character === " ") code = "Space";
+    else if (character === ",") code = "Comma";
+    else if (character === "\n") code = "Enter";
+    else throw new Error(`Carácter de teste não suportado: ${character}`);
+    zx8302.enqueueKey(QL_KEYBOARD.keyrowByCode[code]);
+  }
+}
+
+function step(cpu, bus) {
+  const cycles = cpu.step();
+  bus.tick(cycles);
+  cpu.setInterruptLevel(bus.interruptLevel);
+}
 
 test("a Minerva alcança MC_STAT e ativa MODE 4", async () => {
   const zx8301 = new ZX8301();
@@ -125,6 +145,42 @@ test("a Minerva recebe F1 e texto pelo IPC até ao SuperBASIC interativo", async
   assert.equal(zx8301.mode, 4);
   assert.equal(zx8302.keyboardQueue.length, 0);
   assert.ok(greenPixelsInCommandWindow > 20, "o comando não apareceu na janela #0");
+});
+
+test("a Minerva transmite BEEP ao IPC e o som termina pela duração indicada", async () => {
+  const events = [];
+  const zx8301 = new ZX8301();
+  const zx8302 = new ZX8302({ onSound: (event) => events.push(event) });
+  const bus = new QLBus({ devices: [zx8301, zx8302] });
+  const rom = await readFile(new URL("../roms/minerva/minerva-1.98a1.bin", import.meta.url));
+  bus.loadRom(new Uint8Array(rom));
+  const cpu = new MC68008(bus);
+  cpu.reset();
+  zx8302.enqueueKey(QL_KEYBOARD.keyrowByCode.F1);
+
+  for (let instruction = 0; instruction < 2_000_000; instruction += 1) step(cpu, bus);
+  enqueueText(zx8302, "beep 500,20\n");
+
+  for (let instruction = 0; instruction < 1_000_000 && events.length === 0; instruction += 1) {
+    step(cpu, bus);
+  }
+  assert.equal(events[0]?.type, "start", "a Minerva não enviou o comando INSO");
+  assert.deepEqual(events[0].sound, {
+    pitch: 21,
+    pitch2: 21,
+    interval: 0,
+    duration: 500,
+    step: 0,
+    wrap: 0,
+    randomness: 0,
+    fuzziness: 0,
+  });
+
+  for (let instruction = 0; instruction < 100_000 && events.length < 2; instruction += 1) {
+    step(cpu, bus);
+  }
+  assert.equal(events.at(-1)?.reason, "duration");
+  assert.equal(zx8302.soundActive, false);
 });
 
 test("a Minerva seleciona MDV1 e inicia a leitura de uma imagem montada", async () => {

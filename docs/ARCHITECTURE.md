@@ -47,9 +47,25 @@ publicado pela Sinclair Research Ltd.
 
 O ZX8302 descodifica os registos de controlo/transmissão (`0x18002`/`0x18003`)
 e leitura/interrupt (`0x18020`/`0x18021`). A ligação ao IPC interpreta comandos
-e respostas bit a bit, incluindo estado e leitura do buffer do teclado. Os
-comandos de som e série ainda não implementados consomem os respetivos
-parâmetros e devolvem um estado inativo, mantendo o fluxo sincronizado.
+e respostas bit a bit, incluindo estado e leitura do buffer do teclado.
+
+Os comandos IPC `$A` e `$B` iniciam e param o som. O primeiro descodifica o
+bloco de 64 bits em dois pitches, intervalo, duração, gradiente, wrap,
+aleatoriedade e fuzziness; o segundo interrompe-o imediatamente. A duração e o
+bit de estado do som avançam com os ciclos emulados. Um gerador independente
+produz a onda quadrada e as suas modulações, enquanto um `AudioWorklet` a
+entrega ao Web Audio sem bloquear a interface. O `AudioContext` é criado apenas
+após uma interação do utilizador e a pausa do emulador congela também o som.
+
+O formato do comando segue a secção 13.0 do
+[QL Technical Guide](https://8bit-wiki.de/Sinclair/QL/DOKUMENTATIONEN/QL%20Technical%20Guide.pdf)
+e a ordem efetivamente emitida pela fonte da Minerva incluída. As unidades de
+72 µs e a semântica dos parâmetros seguem a documentação de `BEEP`; a conversão
+de pitch foi calibrada pela relação medida publicada em
+[Sinclair QL sound pitch and frequency](https://www.kameli.net/marq/?p=1177).
+
+Os comandos de série ainda não implementados devolvem um estado inativo,
+mantendo o fluxo sincronizado.
 
 A interface converte `KeyboardEvent.code` na matriz física inglesa do QL e
 entrega até sete definições por comando `rdkb`. Shift, Control e Alt seguem no

@@ -1,4 +1,5 @@
 import { MicrodriveImage, MICRODRIVE_FORMAT } from "./microdrive.js";
+import { decodeIpcSoundBits, QL_SOUND_TICK_HZ } from "./ql-sound.js";
 
 const TRANSMIT_CONTROL = 0x18_002;
 const IPC_WRITE = 0x18_003;
@@ -19,6 +20,7 @@ const IPC_READ_SERIAL_2_COMMAND = 0x07;
 const IPC_READ_KEYBOARD_COMMAND = 0x08;
 const IPC_DIRECT_KEYBOARD_COMMAND = 0x09;
 const IPC_SOUND_COMMAND = 0x0a;
+const IPC_STOP_SOUND_COMMAND = 0x0b;
 const IPC_MDV_SENSITIVITY_COMMAND = 0x0c;
 const IPC_BAUD_COMMAND = 0x0d;
 const IPC_RANDOM_COMMAND = 0x0e;
@@ -38,16 +40,18 @@ const MICRODRIVE_DRIVE_COUNT = 8;
  * Initial ZX8302 peripheral-controller register block.
  *
  * This models the synchronous IPC-link protocol and its keyboard buffer. The
- * sound and serial commands are consumed so that the bit stream stays aligned,
- * but their peripherals remain intentionally inert.
+ * Serial commands are consumed so that the bit stream stays aligned. Sound
+ * commands are decoded and exposed to a host audio adapter.
  */
 export class ZX8302 {
-  constructor() {
+  constructor({ onSound = null } = {}) {
+    this.onSound = onSound;
     this.microdrives = Array(MICRODRIVE_DRIVE_COUNT).fill(null);
     this.reset();
   }
 
   reset() {
+    const soundWasActive = this.soundActive;
     this.transmitControl = 0;
     this.interruptMask = 0;
     this.ipcWrite = 0;
@@ -61,6 +65,9 @@ export class ZX8302 {
     this.keyboardQueue = [];
     this.pendingInterrupts = 0;
     this.frameCycleAccumulator = 0;
+    this.soundActive = false;
+    this.sound = null;
+    this.soundCyclesRemaining = 0;
     this.activeMicrodrive = 0;
     this.microdriveControl = -1;
     this.microdrivePhase = "header-gap";
@@ -75,6 +82,7 @@ export class ZX8302 {
     this.microdriveDataReads = 0;
     this.microdriveDataWrites = 0;
     this.microdriveGapCycleAccumulator = 0;
+    if (soundWasActive) this.emitSound({ type: "stop", reason: "reset" });
   }
 
   handles(address) {
@@ -347,7 +355,9 @@ export class ZX8302 {
   startIpcCommand(command) {
     this.ipcCommand = command;
     if (command === IPC_STATUS_COMMAND) {
-      this.setIpcResponse(this.keyboardQueue.length > 0 ? 0x01 : 0x00, 8);
+      const status = (this.keyboardQueue.length > 0 ? 0x01 : 0)
+        | (this.soundActive ? 0x02 : 0);
+      this.setIpcResponse(status, 8);
     } else if (command === IPC_READ_KEYBOARD_COMMAND) {
       const keys = this.keyboardQueue.splice(0, 7);
       this.ipcResponseBits.push(...this.numberToBits(keys.length, 4));
@@ -362,6 +372,9 @@ export class ZX8302 {
       this.expectIpcArguments(4);
     } else if (command === IPC_SOUND_COMMAND) {
       this.expectIpcArguments(64);
+    } else if (command === IPC_STOP_SOUND_COMMAND) {
+      this.stopSound("command");
+      this.ipcCommand = null;
     } else if (command === IPC_MDV_SENSITIVITY_COMMAND || command === IPC_BAUD_COMMAND) {
       this.expectIpcArguments(4);
     } else if (command === IPC_RANDOM_COMMAND) {
@@ -379,11 +392,37 @@ export class ZX8302 {
   }
 
   finishIpcArguments() {
-    const argument = this.bitsToNumber(this.ipcArgumentBits);
+    const bits = this.ipcArgumentBits;
     this.ipcArgumentBits = [];
     if (this.ipcCommand === IPC_DIRECT_KEYBOARD_COMMAND) this.setIpcResponse(0, 8);
-    else if (this.ipcCommand === IPC_TEST_COMMAND) this.setIpcResponse(argument, 8);
+    else if (this.ipcCommand === IPC_SOUND_COMMAND) {
+      this.startSound(decodeIpcSoundBits(bits));
+      this.ipcCommand = null;
+    } else if (this.ipcCommand === IPC_TEST_COMMAND) {
+      this.setIpcResponse(this.bitsToNumber(bits), 8);
+    }
     else this.ipcCommand = null;
+  }
+
+  startSound(sound) {
+    this.sound = sound;
+    this.soundActive = true;
+    this.soundCyclesRemaining = sound.duration === 0
+      ? Number.POSITIVE_INFINITY
+      : sound.duration * CPU_HZ / QL_SOUND_TICK_HZ;
+    this.emitSound({ type: "start", sound });
+  }
+
+  stopSound(reason = "command") {
+    const wasActive = this.soundActive;
+    this.soundActive = false;
+    this.sound = null;
+    this.soundCyclesRemaining = 0;
+    if (wasActive || reason === "command") this.emitSound({ type: "stop", reason });
+  }
+
+  emitSound(event) {
+    if (typeof this.onSound === "function") this.onSound(Object.freeze(event));
   }
 
   setIpcResponse(value, width) {
@@ -404,6 +443,10 @@ export class ZX8302 {
       throw new RangeError("O avanço do ZX8302 requer um número de ciclos não negativo.");
     }
     this.frameCycleAccumulator += cycles;
+    if (this.soundActive && Number.isFinite(this.soundCyclesRemaining)) {
+      this.soundCyclesRemaining -= cycles;
+      if (this.soundCyclesRemaining <= 0) this.stopSound("duration");
+    }
     if (this.frameCycleAccumulator >= FRAME_CYCLES) {
       this.frameCycleAccumulator %= FRAME_CYCLES;
       this.pendingInterrupts |= FRAME_INTERRUPT;

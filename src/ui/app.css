@@ -185,6 +185,18 @@ canvas:focus-visible { outline: 2px solid #61d6a8; outline-offset: 3px; }
 .computer-stage:fullscreen[data-presentation="computer"] .stage-surface { width: min(100vw, 150vh); }
 
 .controls { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 22px; }
+.sound-toggle { display: inline-flex; align-items: center; gap: 8px; }
+.sound-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #61d6a8;
+  box-shadow: 0 0 9px #61d6a899;
+}
+.sound-toggle[aria-pressed="false"] .sound-indicator {
+  background: #777772;
+  box-shadow: none;
+}
 .file-control, button {
   min-height: 44px;
   padding: 11px 16px;
