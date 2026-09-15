@@ -4,6 +4,7 @@ import { ZX8301, ZX8301_DISPLAY } from "./devices/zx8301.js";
 import { ZX8302 } from "./devices/zx8302.js";
 import { MICRODRIVE_FORMAT } from "./devices/microdrive.js";
 import { importQlPackage } from "./formats/ql-package.js";
+import { computerFrameSource } from "./ui/computer-frame.js";
 import { QLAudio } from "./ui/ql-audio.js";
 import { qlKeyDefinition } from "./ui/ql-keyboard.js";
 import {
@@ -49,6 +50,7 @@ const resetButton = document.querySelector("#reset");
 const soundButton = document.querySelector("#sound-toggle");
 const fullscreenButton = document.querySelector("#fullscreen");
 const computerStage = document.querySelector(".computer-stage");
+const fullSystemFrame = document.querySelector(".full-system-frame");
 const presentationButtons = [...document.querySelectorAll("[data-presentation-option]")];
 const screenMessage = document.querySelector("#screen-message");
 const canvas = document.querySelector("#screen");
@@ -168,6 +170,15 @@ function driveAction(label, action, slot, className = "") {
 }
 
 function renderMicrodriveRack() {
+  const mdv1Mounted = Boolean(zx8302.microdriveAt(1));
+  const mdv2Mounted = Boolean(zx8302.microdriveAt(2));
+  const frameSource = computerFrameSource(mdv1Mounted, mdv2Mounted);
+  if (fullSystemFrame.getAttribute("src") !== frameSource) {
+    fullSystemFrame.setAttribute("src", frameSource);
+  }
+  computerStage.dataset.mdv1Mounted = String(mdv1Mounted);
+  computerStage.dataset.mdv2Mounted = String(mdv2Mounted);
+
   if (!microdriveRack) return;
   microdriveRack.replaceChildren();
   const selected = selectedSoftwareFile();
